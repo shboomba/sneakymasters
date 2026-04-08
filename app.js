@@ -777,9 +777,61 @@ function setupEventListeners() {
   });
 }
 
+/* ─── Suggestion Widget ──────────────────────────────────────────────────────── */
+function setupSuggestionWidget() {
+  const fab     = document.getElementById('suggestion-fab');
+  const panel   = document.getElementById('suggestion-panel');
+  const close   = document.getElementById('suggestion-close');
+  const submit  = document.getElementById('suggestion-submit');
+  const textarea = document.getElementById('suggestion-text');
+  const status  = document.getElementById('suggestion-status');
+
+  fab.addEventListener('click', () => {
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) textarea.focus();
+  });
+
+  close.addEventListener('click', () => panel.classList.add('hidden'));
+
+  submit.addEventListener('click', async () => {
+    const text = textarea.value.trim();
+    if (!text) return;
+
+    submit.disabled = true;
+    submit.textContent = 'Sending...';
+    status.className = 'hidden';
+
+    try {
+      const res = await fetch('/api/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggestion: text })
+      });
+
+      if (res.ok) {
+        textarea.value = '';
+        status.textContent = 'Suggestion sent!';
+        status.className = 'success';
+        setTimeout(() => panel.classList.add('hidden'), 2000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        status.textContent = data.error || 'Failed to send. Try again.';
+        status.className = 'error';
+      }
+    } catch {
+      status.textContent = 'Network error. Try again.';
+      status.className = 'error';
+    }
+
+    submit.disabled = false;
+    submit.textContent = 'Send';
+  });
+}
+
 /* ─── Init ───────────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
+  setupSuggestionWidget();
   getDDragonVersion(); // warm up version cache
   refreshAll();
 });

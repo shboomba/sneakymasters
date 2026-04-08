@@ -720,6 +720,101 @@ main {
   margin-top: 6px;
 }
 
+/* ─── Suggestion Widget ──────────────────────────────────────────────────────── */
+#suggestion-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+#suggestion-fab {
+  background: var(--gold);
+  color: #0a0e1a;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 18px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  transition: background var(--transition), transform var(--transition);
+}
+
+#suggestion-fab:hover { background: #d9aa4a; transform: translateY(-1px); }
+
+#suggestion-panel {
+  background: #111927;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  width: 300px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#suggestion-panel.hidden { display: none; }
+
+.suggestion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+}
+
+.suggestion-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px;
+  transition: color var(--transition);
+}
+
+.suggestion-header button:hover { color: var(--text-primary); }
+
+#suggestion-text {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: none;
+  outline: none;
+  transition: border-color var(--transition);
+  line-height: 1.5;
+}
+
+#suggestion-text:focus { border-color: var(--gold-dark); }
+#suggestion-text::placeholder { color: var(--text-muted); }
+
+#suggestion-status {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+#suggestion-status.hidden { display: none; }
+#suggestion-status.success { color: #50c878; background: #50c87815; border: 1px solid #50c87830; }
+#suggestion-status.error   { color: var(--error); background: #e0525215; border: 1px solid #e0525230; }
+
+#suggestion-submit { width: 100%; justify-content: center; }
+
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   header h1 { font-size: 22px; }
