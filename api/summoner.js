@@ -19,8 +19,6 @@ export default async function handler(req, res) {
       headers: { 'X-Riot-Token': RIOT_KEY }
     });
 
-    console.log('Account API status:', accountRes.status, '| Key prefix:', RIOT_KEY.slice(0, 10));
-
     if (accountRes.status === 403) {
       return res.status(403).json({ error: 'API key invalid or expired — renew at developer.riotgames.com' });
     }
@@ -37,37 +35,11 @@ export default async function handler(req, res) {
     const account = await accountRes.json();
     const { puuid } = account;
 
-    // Step 2: Get summoner by PUUID
-    const summonerUrl = `https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(puuid)}`;
-    const summonerRes = await fetch(summonerUrl, {
-      headers: { 'X-Riot-Token': RIOT_KEY }
-    });
-
-    console.log('Summoner API status:', summonerRes.status);
-
-    if (summonerRes.status === 403) {
-      return res.status(403).json({ error: 'API key invalid or expired — renew at developer.riotgames.com' });
-    }
-    if (summonerRes.status === 404) {
-      return res.status(404).json({ error: 'Summoner has no NA account' });
-    }
-    if (summonerRes.status === 429) {
-      return res.status(429).json({ error: 'Rate limited — try again shortly' });
-    }
-    if (!summonerRes.ok) {
-      return res.status(summonerRes.status).json({ error: 'Riot API error (summoner lookup)' });
-    }
-
-    const summoner = await summonerRes.json();
-    const summonerId = summoner.id;
-
-    // Step 3: Get ranked entries
-    const leagueUrl = `https://na1.api.riotgames.com/lol/league/v4/entries/by-summoner/${encodeURIComponent(summonerId)}`;
+    // Step 2: Get ranked entries by PUUID
+    const leagueUrl = `https://na1.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`;
     const leagueRes = await fetch(leagueUrl, {
       headers: { 'X-Riot-Token': RIOT_KEY }
     });
-
-    console.log('League API status:', leagueRes.status);
 
     if (leagueRes.status === 403) {
       return res.status(403).json({ error: 'API key invalid or expired — renew at developer.riotgames.com' });
@@ -87,7 +59,6 @@ export default async function handler(req, res) {
         gameName,
         tagLine,
         puuid,
-        summonerId,
         tier: 'UNRANKED',
         rank: null,
         leaguePoints: 0,
@@ -100,7 +71,6 @@ export default async function handler(req, res) {
       gameName,
       tagLine,
       puuid,
-      summonerId,
       tier: soloEntry.tier,
       rank: soloEntry.rank,
       leaguePoints: soloEntry.leaguePoints,
