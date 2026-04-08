@@ -1,5 +1,4 @@
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
-const STORAGE_KEY     = 'rtm_players';
 const STARRED_KEY     = 'rtm_starred';
 const LP_HISTORY_KEY  = 'rtm_lp_history';
 const POS_HISTORY_KEY = 'rtm_pos_history';
@@ -63,14 +62,31 @@ function computeTotalLP(tier, rank, lp) {
   return (TIER_BASE[tier] ?? 0) + (DIVISION_BASE[rank] ?? 0) + (lp || 0);
 }
 
-/* ─── LocalStorage: Players ──────────────────────────────────────────────────── */
-function loadPlayers() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-  catch { return []; }
+/* ─── Shared Player List (API) ───────────────────────────────────────────────── */
+async function loadPlayers() {
+  try {
+    const res = await fetch('/api/players');
+    const data = await res.json();
+    return data.players || [];
+  } catch { return []; }
 }
 
-function savePlayers(players) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
+async function addPlayerToList(gameName, tagLine) {
+  const res = await fetch('/api/players', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameName, tagLine })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to add player');
+}
+
+async function removePlayerFromList(gameName, tagLine) {
+  await fetch('/api/players', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameName, tagLine })
+  });
 }
 
 /* ─── LocalStorage: Starred ──────────────────────────────────────────────────── */
@@ -268,7 +284,7 @@ function getTierColor(tier) {
 
 /* ─── Refresh ────────────────────────────────────────────────────────────────── */
 async function refreshAll() {
-  const players = loadPlayers();
+  const players = await loadPlayers();
   if (players.length === 0) {
     renderLeaderboard();
     return;
@@ -629,12 +645,11 @@ async function addPlayer(riotId) {
 
   if (!gameName || !tagLine) throw new Error('Use format: GameName#TAG');
 
-  const players = loadPlayers();
-  if (players.some(p => playerKey(p.gameName, p.tagLine) === playerKey(gameName, tagLine))) {
-    throw new Error('Player already added');
-  }
-
+  // Validate with Riot API first
   const data = await fetchPlayerData(gameName, tagLine);
+
+  // Save to shared list (throws if already added)
+  await addPlayerToList(data.gameName, data.tagLine);
 
   // Fetch champions immediately on add
   await getDDragonVersion();
@@ -645,16 +660,13 @@ async function addPlayer(riotId) {
   }
   data.champions = champions || [];
 
-  players.push({ gameName: data.gameName, tagLine: data.tagLine });
-  savePlayers(players);
   upsertPlayer(data);
   recordLPSnapshot(data.gameName, data.tagLine, data.totalLP);
   renderLeaderboard();
 }
 
-function removePlayer(gameName, tagLine) {
-  const players = loadPlayers().filter(p => playerKey(p.gameName, p.tagLine) !== playerKey(gameName, tagLine));
-  savePlayers(players);
+async function removePlayer(gameName, tagLine) {
+  await removePlayerFromList(gameName, tagLine);
   removePlayerFromState(gameName, tagLine);
   renderLeaderboard();
   if (activeTab === 'rankings') renderRankingsTab();

@@ -11,6 +11,10 @@
     "api/suggest.js": {
       "memory": 128,
       "maxDuration": 10
+    },
+    "api/players.js": {
+      "memory": 128,
+      "maxDuration": 10
     }
   }
 }
