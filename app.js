@@ -1,5 +1,6 @@
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
 const STORAGE_KEY     = 'rtm_players';
+const STARRED_KEY     = 'rtm_starred';
 const LP_HISTORY_KEY  = 'rtm_lp_history';
 const POS_HISTORY_KEY = 'rtm_pos_history';
 const CHAMPIONS_KEY   = 'rtm_champions';
@@ -70,6 +71,28 @@ function loadPlayers() {
 
 function savePlayers(players) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
+}
+
+/* ─── LocalStorage: Starred ──────────────────────────────────────────────────── */
+function loadStarred() {
+  try { return new Set(JSON.parse(localStorage.getItem(STARRED_KEY)) || []); }
+  catch { return new Set(); }
+}
+
+function saveStarred(set) {
+  localStorage.setItem(STARRED_KEY, JSON.stringify([...set]));
+}
+
+function toggleStar(gameName, tagLine) {
+  const starred = loadStarred();
+  const key = playerKey(gameName, tagLine);
+  if (starred.has(key)) starred.delete(key);
+  else starred.add(key);
+  saveStarred(starred);
+}
+
+function isStarred(gameName, tagLine) {
+  return loadStarred().has(playerKey(gameName, tagLine));
 }
 
 /* ─── LocalStorage: LP History ───────────────────────────────────────────────── */
@@ -321,9 +344,14 @@ function renderLeaderboard() {
     return;
   }
 
+  const starred = loadStarred();
   const sorted = [...enrichedPlayers].sort((a, b) => {
     if (a.loading && !b.loading) return 1;
     if (!a.loading && b.loading) return -1;
+    const aStarred = starred.has(playerKey(a.gameName, a.tagLine));
+    const bStarred = starred.has(playerKey(b.gameName, b.tagLine));
+    if (aStarred && !bStarred) return -1;
+    if (!aStarred && bStarred) return 1;
     return (b.totalLP || 0) - (a.totalLP || 0);
   });
 
@@ -376,15 +404,17 @@ function renderCard(player, position) {
   const champHtml = renderChampions(player);
   const graphHtml = renderGraphPanel(player);
   const graphKey = playerKey(player.gameName, player.tagLine).replace(/[^a-z0-9]/g, '-');
+  const starred = isStarred(player.gameName, player.tagLine);
 
   return `
-    <div class="player-card ${rankClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}">
+    <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}">
       <div class="card-header">
         <div class="card-rank-badge">${posLabel}</div>
         <div class="card-identity">
           <div class="card-game-name">${escHtml(player.gameName)}</div>
           <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
         </div>
+        <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
         <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
       </div>
       <div class="card-rank-info">
@@ -495,14 +525,12 @@ function renderRankingsTab() {
     const pos = i + 1;
     const change = getWeeklyPositionChange(p.gameName, p.tagLine, pos);
     let changeBadge;
-    if (change === null) {
-      changeBadge = `<span class="pos-change new">NEW</span>`;
-    } else if (change > 0) {
-      changeBadge = `<span class="pos-change up">&#9650; ${change}</span>`;
-    } else if (change < 0) {
-      changeBadge = `<span class="pos-change down">&#9660; ${Math.abs(change)}</span>`;
-    } else {
+    if (change === null || change === 0) {
       changeBadge = `<span class="pos-change same">&#8212;</span>`;
+    } else if (change > 0) {
+      changeBadge = `<span class="pos-change up">^${change}</span>`;
+    } else {
+      changeBadge = `<span class="pos-change down">v${Math.abs(change)}</span>`;
     }
 
     const tier = p.tier || 'UNRANKED';
@@ -520,8 +548,8 @@ function renderRankingsTab() {
           <div class="tag-line">#${escHtml(p.tagLine)}</div>
         </div>
         <div class="ranking-rank">${tierStr}</div>
-        ${changeBadge}
         <a href="https://www.op.gg/summoners/na/${opggName}" target="_blank" rel="noopener" class="btn-opgg">op.gg</a>
+        ${changeBadge}
       </div>`;
   }).join('');
 }
@@ -583,6 +611,10 @@ function renderNumberLineTab() {
   }
 
   track.innerHTML = html;
+
+  // Start scrolled to the right (Masters end)
+  const scrollEl = document.getElementById('numberline-scroll');
+  scrollEl.scrollLeft = scrollEl.scrollWidth;
 }
 
 /* ─── Add / Remove Player ────────────────────────────────────────────────────── */
@@ -697,11 +729,18 @@ function setupEventListeners() {
     if (e.key === 'Escape') closeModal();
   });
 
-  // Card event delegation (remove + graph toggle)
+  // Card event delegation (remove + star + graph toggle)
   document.getElementById('leaderboard').addEventListener('click', e => {
     const removeBtn = e.target.closest('.btn-remove');
     if (removeBtn) {
       removePlayer(removeBtn.dataset.gameName, removeBtn.dataset.tagLine);
+      return;
+    }
+
+    const starBtn = e.target.closest('.btn-star');
+    if (starBtn) {
+      toggleStar(starBtn.dataset.gameName, starBtn.dataset.tagLine);
+      renderLeaderboard();
       return;
     }
 
