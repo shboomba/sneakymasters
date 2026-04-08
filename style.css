@@ -1,0 +1,431 @@
+/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
+:root {
+  --bg-primary: #0a0e1a;
+  --bg-card: #0f1623;
+  --bg-card-hover: #131d2e;
+  --border: #1e2a3a;
+  --gold: #c89b3c;
+  --gold-light: #f0e6d3;
+  --gold-dark: #785a28;
+  --text-primary: #f0e6d3;
+  --text-secondary: #7a8899;
+  --text-muted: #4a5568;
+  --progress-bg: #111927;
+  --error: #e05252;
+  --radius: 8px;
+  --transition: 0.2s ease;
+}
+
+/* Tier colors */
+[data-tier="IRON"]        { --tier-color: #6b6b6b; --tier-glow: #6b6b6b33; }
+[data-tier="BRONZE"]      { --tier-color: #cd853f; --tier-glow: #cd853f33; }
+[data-tier="SILVER"]      { --tier-color: #c0c0c0; --tier-glow: #c0c0c033; }
+[data-tier="GOLD"]        { --tier-color: #ffd700; --tier-glow: #ffd70033; }
+[data-tier="PLATINUM"]    { --tier-color: #40e0d0; --tier-glow: #40e0d033; }
+[data-tier="EMERALD"]     { --tier-color: #50c878; --tier-glow: #50c87833; }
+[data-tier="DIAMOND"]     { --tier-color: #b9d4f5; --tier-glow: #b9d4f533; }
+[data-tier="MASTER"]      { --tier-color: #d7a2e8; --tier-glow: #d7a2e833; }
+[data-tier="GRANDMASTER"] { --tier-color: #ff6b6b; --tier-glow: #ff6b6b33; }
+[data-tier="CHALLENGER"]  { --tier-color: #ffd700; --tier-glow: #ffd70033; }
+[data-tier="UNRANKED"]    { --tier-color: #4a5568; --tier-glow: transparent; }
+
+/* ─── Reset & Base ───────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────────── */
+header {
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #0d1220 0%, var(--bg-primary) 100%);
+  padding: 24px 0 20px;
+}
+
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+header h1 {
+  font-family: 'Cinzel', serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.header-subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.header-controls {
+  display: flex;
+  gap: 10px;
+}
+
+/* ─── Buttons ────────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--gold);
+  color: #0a0e1a;
+  border-color: var(--gold);
+}
+.btn-primary:hover { background: #d9aa4a; border-color: #d9aa4a; }
+.btn-primary:active { background: var(--gold-dark); }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+.btn-secondary:hover { background: var(--bg-card-hover); border-color: #2a3a4e; }
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Main / Leaderboard ─────────────────────────────────────────────────────── */
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+#leaderboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+/* ─── Empty State ────────────────────────────────────────────────────────────── */
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--text-secondary);
+}
+
+.empty-state h2 {
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  font-size: 13px;
+}
+
+/* ─── Player Card ────────────────────────────────────────────────────────────── */
+.player-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--tier-color, var(--border));
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+  transition: var(--transition);
+}
+
+.player-card:hover {
+  background: var(--bg-card-hover);
+}
+
+/* Gold glow for #1 */
+.player-card.rank-first {
+  box-shadow: 0 0 20px var(--tier-glow, transparent), 0 0 0 1px var(--tier-color, transparent);
+}
+
+/* ─── Card Header ────────────────────────────────────────────────────────────── */
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 8px;
+}
+
+.card-rank-badge {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  min-width: 28px;
+}
+
+.rank-first .card-rank-badge { color: var(--gold); }
+.rank-second .card-rank-badge { color: #c0c0c0; }
+.rank-third .card-rank-badge { color: #cd853f; }
+
+.card-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-game-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-tag-line {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+.btn-remove:hover { color: var(--error); background: #e0525215; }
+
+/* ─── Card Rank Info ─────────────────────────────────────────────────────────── */
+.card-rank-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tier-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tier-color, var(--text-secondary));
+  background: color-mix(in srgb, var(--tier-color, #4a5568) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tier-color, #4a5568) 30%, transparent);
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.lp-display {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ─── Win/Loss Record ────────────────────────────────────────────────────────── */
+.card-record {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+.win-rate {
+  color: var(--text-secondary);
+}
+
+.win-rate.positive { color: #50c878; }
+.win-rate.negative { color: var(--error); }
+
+/* ─── Progress Bar ───────────────────────────────────────────────────────────── */
+.progress-section {
+  margin-top: 4px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.progress-label .progress-pct {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.progress-track {
+  height: 6px;
+  background: var(--progress-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-dark), var(--gold), #f0e6d3);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+/* ─── Masters Reached Banner ─────────────────────────────────────────────────── */
+.masters-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+  border-radius: 6px;
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Loading State ──────────────────────────────────────────────────────────── */
+.card-loading {
+  opacity: 0.6;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 25%, #1e2a3a 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-name  { width: 140px; height: 16px; }
+.skeleton-tag   { width: 60px;  height: 12px; margin-top: 4px; }
+.skeleton-badge { width: 80px;  height: 22px; margin-bottom: 12px; }
+.skeleton-bar   { width: 100%;  height: 6px; }
+
+/* ─── Error State ────────────────────────────────────────────────────────────── */
+.card-error-msg {
+  font-size: 12px;
+  color: var(--error);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── Modal ──────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal {
+  background: #111927;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+.modal-title {
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+
+.modal-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.modal-hint code {
+  background: var(--border);
+  color: var(--gold-light);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.modal-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  outline: none;
+  transition: var(--transition);
+  margin-bottom: 10px;
+}
+
+.modal-input:focus { border-color: var(--gold-dark); }
+.modal-input::placeholder { color: var(--text-muted); }
+
+.modal-error {
+  font-size: 12px;
+  color: var(--error);
+  margin-bottom: 12px;
+  min-height: 18px;
+}
+
+.modal-error.hidden { display: none; }
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  header h1 { font-size: 22px; }
+  #leaderboard { grid-template-columns: 1fr; }
+  .header-inner { gap: 12px; }
+}

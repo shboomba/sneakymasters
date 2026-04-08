@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sneaky Diamond — Race to Masters</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="header-title">
+        <h1>Sneaky Diamond</h1>
+        <p class="header-subtitle">Race to Masters</p>
+      </div>
+      <div class="header-controls">
+        <button id="btn-refresh-all" class="btn btn-secondary">Refresh All</button>
+        <button id="btn-add-player" class="btn btn-primary">+ Add Player</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="leaderboard"></div>
+  </main>
+
+  <!-- Add Player Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 class="modal-title">Add Player</h2>
+      <p class="modal-hint">Enter the player's Riot ID (e.g. <code>PlayerName#NA1</code>)</p>
+      <input
+        id="input-riot-id"
+        class="modal-input"
+        type="text"
+        placeholder="GameName#TAG"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <div id="modal-error" class="modal-error hidden"></div>
+      <div class="modal-actions">
+        <button id="btn-modal-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="btn-modal-confirm" class="btn btn-primary">Add Player</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
