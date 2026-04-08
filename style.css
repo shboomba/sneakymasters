@@ -529,15 +529,14 @@ main {
 #numberline-container {
   position: relative;
   display: flex;
-  align-items: center;
-  height: 280px;
+  align-items: flex-start;
+  min-height: 280px;
   padding: 0 48px;
 }
 
 #numberline-scroll {
   flex: 1;
   overflow-x: auto;
-  height: 100%;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -549,45 +548,46 @@ main {
 #numberline-track {
   position: relative;
   width: 3200px;
-  height: 280px;
+  min-height: 280px;
+  /* height set dynamically by JS */
 }
 
 .nl-baseline {
   position: absolute;
-  top: 139px;
   left: 0;
   width: 3200px;
   height: 2px;
   background: var(--border);
+  /* top set by JS */
 }
 
 .nl-zone {
   position: absolute;
-  top: 130px;
   height: 20px;
   border-radius: 2px;
+  /* top, left, width set by JS */
 }
 
 .nl-tier-label {
   position: absolute;
-  top: 155px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   transform: translateX(-50%);
   color: var(--text-muted);
+  /* top, left set by JS */
 }
 
 .nl-dot {
   position: absolute;
-  top: 133px;
   width: 14px;
   height: 14px;
   border-radius: 50%;
   border: 2px solid var(--bg-primary);
   transform: translateX(-50%);
   z-index: 2;
+  /* top, left, background set by JS */
 }
 
 .nl-player-label {
@@ -620,7 +620,8 @@ main {
 }
 
 .nl-arrow {
-  position: absolute;
+  position: sticky;
+  top: 50%;
   z-index: 10;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -634,8 +635,9 @@ main {
   align-items: center;
   justify-content: center;
   transition: var(--transition);
-  top: 50%;
-  transform: translateY(-50%);
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 100px;
 }
 
 .nl-arrow:hover { border-color: var(--gold-dark); color: var(--gold); }

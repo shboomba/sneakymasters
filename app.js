@@ -582,64 +582,116 @@ function renderRankingsTab() {
 }
 
 /* ─── Number Line Tab ────────────────────────────────────────────────────────── */
+const NL_LABEL_H     = 36;  // px height of name + tier label block
+const NL_LABEL_V_GAP = 10;  // px gap between label edge and baseline
+const NL_MIN_X_GAP   = 130; // min horizontal px between labels in the same lane
+const NL_LANE_ORDER  = [1, -1, 2, -2, 3, -3, 4, -4, 5, -5];
+
 function lpToX(lp) {
   const usable = NL_TRACK_WIDTH - NL_PADDING_LEFT - NL_PADDING_RIGHT;
   return NL_PADDING_LEFT + (Math.min(lp, NL_LP_MAX) / NL_LP_MAX) * usable;
+}
+
+// Greedy lane assignment — sorts items by x and assigns each to the
+// first lane (in NL_LANE_ORDER) whose last-placed label is far enough away.
+function nlAssignLanes(items) {
+  const laneLastX = {};
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  for (const item of sorted) {
+    let placed = false;
+    for (const lane of NL_LANE_ORDER) {
+      if (laneLastX[lane] === undefined || item.x - laneLastX[lane] >= NL_MIN_X_GAP) {
+        item.lane = lane;
+        laneLastX[lane] = item.x;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) item.lane = NL_LANE_ORDER[NL_LANE_ORDER.length - 1];
+  }
 }
 
 function renderNumberLineTab() {
   const track = document.getElementById('numberline-track');
   if (!track) return;
 
+  const players = [...enrichedPlayers]
+    .filter(p => !p.loading && !p.error && p.tier && p.tier !== 'UNRANKED');
+
+  const items = players.map(p => ({ p, x: lpToX(p.totalLP) }));
+  nlAssignLanes(items);
+
+  // Determine how many above/below lanes are used to set dynamic baseline & height
+  const lanesUsed = items.map(i => i.lane);
+  const maxAbove = lanesUsed.filter(l => l > 0).reduce((m, l) => Math.max(m, l), 1);
+  const maxBelow = lanesUsed.filter(l => l < 0).reduce((m, l) => Math.max(m, Math.abs(l)), 0);
+
+  // baselineY is pushed down enough that even the highest lane fits with 20px top padding
+  const baselineY = 20 + maxAbove * (NL_LABEL_H + NL_LABEL_V_GAP);
+  const trackH = Math.max(280, baselineY + (maxBelow > 0
+    ? maxBelow * (NL_LABEL_H + NL_LABEL_V_GAP) + NL_LABEL_V_GAP + 40
+    : 50));
+
+  track.style.height = `${trackH}px`;
+
   let html = '';
 
   // Baseline
-  html += `<div class="nl-baseline"></div>`;
+  html += `<div class="nl-baseline" style="top:${baselineY}px;"></div>`;
 
-  // Tier zones
+  // Tier zones & labels
   NL_ZONES.forEach(zone => {
     const x1 = lpToX(zone.start);
     const x2 = lpToX(zone.end);
     const w  = x2 - x1;
-    html += `<div class="nl-zone" style="left:${x1}px;width:${w}px;background:${zone.color}18;border-bottom:2px solid ${zone.color}55;"></div>`;
-    html += `<div class="nl-tier-label" style="left:${x1}px;color:${zone.color};">${zone.tier}</div>`;
+    html += `<div class="nl-zone" style="left:${x1}px;width:${w}px;top:${baselineY - 10}px;background:${zone.color}18;border-bottom:2px solid ${zone.color}55;"></div>`;
+    html += `<div class="nl-tier-label" style="left:${x1}px;top:${baselineY + 16}px;color:${zone.color};">${zone.tier}</div>`;
   });
 
   // Players
-  const players = [...enrichedPlayers]
-    .filter(p => !p.loading && !p.error && p.tier && p.tier !== 'UNRANKED')
-    .sort((a, b) => (b.totalLP || 0) - (a.totalLP || 0));
-
-  players.forEach((p, i) => {
-    const x = lpToX(p.totalLP);
-    const isBelow = i % 2 === 1;
+  items.forEach(({ p, x, lane }) => {
     const color = getTierColor(p.tier);
-
     const badgeStr = MASTERS_TIERS.has(p.tier)
       ? `${TIER_DISPLAY[p.tier]} ${p.leaguePoints} LP`
       : `${TIER_DISPLAY[p.tier]} ${p.rank}`;
 
-    // Label positions
-    const labelTop    = isBelow ? 158 : 72;
-    const connTop     = isBelow ? 141 : 88;
-    const connHeight  = isBelow ? 17 : 51;
+    // Label top
+    let labelTop;
+    if (lane > 0) {
+      // above baseline: lane 1 is closest
+      labelTop = baselineY - lane * (NL_LABEL_H + NL_LABEL_V_GAP);
+    } else {
+      // below baseline: lane -1 is closest
+      labelTop = baselineY + NL_LABEL_V_GAP + (Math.abs(lane) - 1) * (NL_LABEL_H + NL_LABEL_V_GAP);
+    }
+
+    // Connector from label edge to baseline dot
+    let connTop, connH;
+    if (lane > 0) {
+      connTop = labelTop + NL_LABEL_H;
+      connH   = baselineY - connTop;
+    } else {
+      connTop = baselineY;
+      connH   = labelTop - baselineY;
+    }
+
+    const dotTop = baselineY - 7;
 
     html += `
       <div class="nl-player-label" style="left:${x}px;top:${labelTop}px;">
         <span class="nl-player-name">${escHtml(p.gameName)}</span>
         <span class="nl-player-tier" style="color:${color};">${badgeStr}</span>
       </div>
-      <div class="nl-connector" style="left:${x}px;top:${connTop}px;height:${connHeight}px;"></div>
-      <div class="nl-dot" style="left:${x}px;background:${color};" title="${escHtml(p.gameName)} — ${badgeStr}"></div>`;
+      ${connH > 0 ? `<div class="nl-connector" style="left:${x}px;top:${connTop}px;height:${connH}px;"></div>` : ''}
+      <div class="nl-dot" style="left:${x}px;top:${dotTop}px;background:${color};" title="${escHtml(p.gameName)} — ${badgeStr}"></div>`;
   });
 
-  if (players.length === 0) {
+  if (items.length === 0) {
     html += `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-muted);font-size:13px;">No ranked players to display</div>`;
   }
 
   track.innerHTML = html;
 
-  // Start scrolled to the right (Masters end)
   const scrollEl = document.getElementById('numberline-scroll');
   scrollEl.scrollLeft = scrollEl.scrollWidth;
 }
