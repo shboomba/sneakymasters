@@ -3,6 +3,10 @@
     "api/summoner.js": {
       "memory": 128,
       "maxDuration": 10
+    },
+    "api/champions.js": {
+      "memory": 128,
+      "maxDuration": 30
     }
   }
 }

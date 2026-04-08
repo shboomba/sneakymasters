@@ -1,5 +1,13 @@
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
-const STORAGE_KEY = 'rtm_players';
+const STORAGE_KEY     = 'rtm_players';
+const LP_HISTORY_KEY  = 'rtm_lp_history';
+const POS_HISTORY_KEY = 'rtm_pos_history';
+const CHAMPIONS_KEY   = 'rtm_champions';
+
+const LP_HISTORY_MAX     = 200;
+const CHAMPION_TTL       = 12 * 60 * 60 * 1000; // 12 hours
+const POS_HISTORY_MAX_AGE = 35 * 24 * 60 * 60 * 1000; // 35 days
+
 const MASTERS_THRESHOLD = 2800;
 
 const TIER_BASE = {
@@ -17,11 +25,35 @@ const TIER_DISPLAY = {
   UNRANKED: 'Unranked'
 };
 
+const TIER_COLORS = {
+  IRON: '#6b6b6b', BRONZE: '#cd853f', SILVER: '#c0c0c0', GOLD: '#ffd700',
+  PLATINUM: '#40e0d0', EMERALD: '#50c878', DIAMOND: '#b9d4f5',
+  MASTER: '#d7a2e8', GRANDMASTER: '#ff6b6b', CHALLENGER: '#ffd700'
+};
+
 const MASTERS_TIERS = new Set(['MASTER', 'GRANDMASTER', 'CHALLENGER']);
 
+// Number line layout
+const NL_TRACK_WIDTH   = 3200;
+const NL_LP_MAX        = 2900;
+const NL_PADDING_LEFT  = 80;
+const NL_PADDING_RIGHT = 80;
+
+const NL_ZONES = [
+  { tier: 'IRON',     start: 0,    end: 400,  color: '#6b6b6b' },
+  { tier: 'BRONZE',   start: 400,  end: 800,  color: '#cd853f' },
+  { tier: 'SILVER',   start: 800,  end: 1200, color: '#c0c0c0' },
+  { tier: 'GOLD',     start: 1200, end: 1600, color: '#ffd700' },
+  { tier: 'PLATINUM', start: 1600, end: 2000, color: '#40e0d0' },
+  { tier: 'EMERALD',  start: 2000, end: 2400, color: '#50c878' },
+  { tier: 'DIAMOND',  start: 2400, end: 2800, color: '#b9d4f5' },
+  { tier: 'MASTER+',  start: 2800, end: 2900, color: '#d7a2e8' },
+];
+
 /* ─── In-Memory State ────────────────────────────────────────────────────────── */
-// Array of enriched player objects (rebuilt each refresh)
 let enrichedPlayers = [];
+let activeTab = 'cards';
+let ddVersion = null; // cached Data Dragon version
 
 /* ─── LP Math ────────────────────────────────────────────────────────────────── */
 function computeTotalLP(tier, rank, lp) {
@@ -30,35 +62,135 @@ function computeTotalLP(tier, rank, lp) {
   return (TIER_BASE[tier] ?? 0) + (DIVISION_BASE[rank] ?? 0) + (lp || 0);
 }
 
-function computeProgressPct(totalLP) {
-  return Math.min((totalLP / MASTERS_THRESHOLD) * 100, 100);
-}
-
-/* ─── LocalStorage ───────────────────────────────────────────────────────────── */
+/* ─── LocalStorage: Players ──────────────────────────────────────────────────── */
 function loadPlayers() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
 }
 
 function savePlayers(players) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
 }
 
-/* ─── API ────────────────────────────────────────────────────────────────────── */
+/* ─── LocalStorage: LP History ───────────────────────────────────────────────── */
+function loadLPHistory() {
+  try { return JSON.parse(localStorage.getItem(LP_HISTORY_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveLPHistory(h) {
+  localStorage.setItem(LP_HISTORY_KEY, JSON.stringify(h));
+}
+
+function recordLPSnapshot(gameName, tagLine, totalLP) {
+  const key = playerKey(gameName, tagLine);
+  const h = loadLPHistory();
+  if (!h[key]) h[key] = [];
+  h[key].push({ ts: Date.now(), lp: totalLP });
+  if (h[key].length > LP_HISTORY_MAX) h[key] = h[key].slice(-LP_HISTORY_MAX);
+  saveLPHistory(h);
+}
+
+function getPlayerLPHistory(gameName, tagLine) {
+  const h = loadLPHistory();
+  return h[playerKey(gameName, tagLine)] || [];
+}
+
+/* ─── LocalStorage: Position History ────────────────────────────────────────── */
+function loadPosHistory() {
+  try { return JSON.parse(localStorage.getItem(POS_HISTORY_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function savePosHistory(h) {
+  localStorage.setItem(POS_HISTORY_KEY, JSON.stringify(h));
+}
+
+function recordPositionSnapshots(sortedPlayers) {
+  const h = loadPosHistory();
+  const now = Date.now();
+  const cutoff = now - POS_HISTORY_MAX_AGE;
+  sortedPlayers.forEach((p, i) => {
+    if (p.loading || p.error) return;
+    const key = playerKey(p.gameName, p.tagLine);
+    if (!h[key]) h[key] = [];
+    h[key].push({ ts: now, position: i + 1 });
+    h[key] = h[key].filter(e => e.ts > cutoff);
+  });
+  savePosHistory(h);
+}
+
+function getWeeklyPositionChange(gameName, tagLine, currentPosition) {
+  const h = loadPosHistory();
+  const entries = h[playerKey(gameName, tagLine)] || [];
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weekEntries = entries.filter(e => e.ts >= sevenDaysAgo);
+  if (weekEntries.length === 0) return null;
+  return weekEntries[0].position - currentPosition; // positive = moved up
+}
+
+/* ─── LocalStorage: Champion Cache ──────────────────────────────────────────── */
+function loadChampionCache() {
+  try { return JSON.parse(localStorage.getItem(CHAMPIONS_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveChampionCache(c) {
+  localStorage.setItem(CHAMPIONS_KEY, JSON.stringify(c));
+}
+
+function getCachedChampions(gameName, tagLine) {
+  const c = loadChampionCache();
+  const entry = c[playerKey(gameName, tagLine)];
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CHAMPION_TTL) return null;
+  return entry.champions;
+}
+
+function cacheChampions(gameName, tagLine, champions) {
+  const c = loadChampionCache();
+  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions };
+  saveChampionCache(c);
+}
+
+/* ─── Data Dragon ────────────────────────────────────────────────────────────── */
+async function getDDragonVersion() {
+  if (ddVersion) return ddVersion;
+  try {
+    const res = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+    const versions = await res.json();
+    ddVersion = versions[0];
+  } catch {
+    ddVersion = '15.7.1';
+  }
+  return ddVersion;
+}
+
+function championIconUrl(championName, version) {
+  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${encodeURIComponent(championName)}.png`;
+}
+
+/* ─── Champions API ──────────────────────────────────────────────────────────── */
+async function fetchChampions(puuid) {
+  try {
+    const res = await fetch(`/api/champions?puuid=${encodeURIComponent(puuid)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.champions || [];
+  } catch {
+    return [];
+  }
+}
+
+/* ─── Riot API ───────────────────────────────────────────────────────────────── */
 async function fetchPlayerData(gameName, tagLine) {
   const url = `/api/summoner?gameName=${encodeURIComponent(gameName)}&tagLine=${encodeURIComponent(tagLine)}`;
   const res = await fetch(url);
   const data = await res.json();
 
-  if (!res.ok) {
-    throw new Error(data.error || `Error ${res.status}`);
-  }
+  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
 
   const totalLP = computeTotalLP(data.tier, data.rank, data.leaguePoints);
-  const progressPct = computeProgressPct(totalLP);
   const totalGames = data.wins + data.losses;
   const winRate = totalGames > 0 ? ((data.wins / totalGames) * 100).toFixed(1) : null;
   const atMasters = MASTERS_TIERS.has(data.tier);
@@ -66,15 +198,16 @@ async function fetchPlayerData(gameName, tagLine) {
   return {
     gameName: data.gameName,
     tagLine: data.tagLine,
+    puuid: data.puuid,
     tier: data.tier,
     rank: data.rank,
     leaguePoints: data.leaguePoints,
     wins: data.wins,
     losses: data.losses,
     totalLP,
-    progressPct,
     winRate,
     atMasters,
+    champions: [],
     loading: false,
     error: null
   };
@@ -87,11 +220,12 @@ function upsertPlayer(data) {
   if (idx === -1) {
     enrichedPlayers.push(data);
   } else {
-    // Preserve stale rank data if refresh fails but we had prior data
     if (data.error && enrichedPlayers[idx].tier) {
       enrichedPlayers[idx] = { ...enrichedPlayers[idx], loading: false, error: data.error };
     } else {
-      enrichedPlayers[idx] = data;
+      // Preserve existing champions array if not yet updated
+      const existingChampions = enrichedPlayers[idx].champions;
+      enrichedPlayers[idx] = { ...data, champions: data.champions || existingChampions || [] };
     }
   }
 }
@@ -105,7 +239,76 @@ function playerKey(gameName, tagLine) {
   return `${gameName.toLowerCase()}#${tagLine.toLowerCase()}`;
 }
 
-/* ─── Rendering ──────────────────────────────────────────────────────────────── */
+function getTierColor(tier) {
+  return TIER_COLORS[tier] || '#4a5568';
+}
+
+/* ─── Refresh ────────────────────────────────────────────────────────────────── */
+async function refreshAll() {
+  const players = loadPlayers();
+  if (players.length === 0) {
+    renderLeaderboard();
+    return;
+  }
+
+  const refreshBtn = document.getElementById('btn-refresh-all');
+  refreshBtn.disabled = true;
+  refreshBtn.textContent = 'Refreshing...';
+
+  // Set all to loading
+  for (const p of players) {
+    const existing = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
+    if (!existing) {
+      upsertPlayer({ gameName: p.gameName, tagLine: p.tagLine, loading: true, totalLP: 0, champions: [] });
+    } else {
+      existing.loading = true;
+    }
+  }
+  renderLeaderboard();
+
+  // Fetch rank data sequentially
+  for (const p of players) {
+    try {
+      const data = await fetchPlayerData(p.gameName, p.tagLine);
+      upsertPlayer(data);
+    } catch (err) {
+      upsertPlayer({ gameName: p.gameName, tagLine: p.tagLine, loading: false, error: err.message, totalLP: 0, champions: [] });
+    }
+    renderLeaderboard();
+  }
+
+  // Sort for snapshots
+  const sorted = [...enrichedPlayers]
+    .filter(p => !p.loading && !p.error && p.tier)
+    .sort((a, b) => (b.totalLP || 0) - (a.totalLP || 0));
+
+  // Record LP + position history
+  for (const p of sorted) {
+    recordLPSnapshot(p.gameName, p.tagLine, p.totalLP);
+  }
+  recordPositionSnapshots(sorted);
+
+  // Fetch champions (cache-aware, sequential)
+  await getDDragonVersion();
+  for (const p of sorted) {
+    let champions = getCachedChampions(p.gameName, p.tagLine);
+    if (champions === null && p.puuid) {
+      champions = await fetchChampions(p.puuid);
+      cacheChampions(p.gameName, p.tagLine, champions);
+    }
+    const state = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
+    if (state) state.champions = champions || [];
+  }
+
+  renderLeaderboard();
+  if (activeTab === 'rankings') renderRankingsTab();
+  if (activeTab === 'numberline') renderNumberLineTab();
+
+  refreshBtn.disabled = false;
+  refreshBtn.textContent = 'Refresh All';
+}
+
+/* ─── Card Rendering ─────────────────────────────────────────────────────────── */
 function renderLeaderboard() {
   const board = document.getElementById('leaderboard');
 
@@ -118,7 +321,6 @@ function renderLeaderboard() {
     return;
   }
 
-  // Sort: atMasters first, then by totalLP desc, loading/error cards go to bottom
   const sorted = [...enrichedPlayers].sort((a, b) => {
     if (a.loading && !b.loading) return 1;
     if (!a.loading && b.loading) return -1;
@@ -145,32 +347,23 @@ function renderCard(player, position) {
           </div>
         </div>
         <div class="skeleton skeleton-badge"></div>
-        <div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>
       </div>`;
   }
 
   const tierDisplay = player.atMasters
-    ? `${TIER_DISPLAY[tier]}`
-    : tier === 'UNRANKED'
-    ? 'Unranked'
+    ? TIER_DISPLAY[tier]
+    : tier === 'UNRANKED' ? 'Unranked'
     : `${TIER_DISPLAY[tier]} ${player.rank || ''}`;
 
   const lpDisplay = player.atMasters
     ? `${player.leaguePoints} LP`
-    : tier === 'UNRANKED'
-    ? '—'
+    : tier === 'UNRANKED' ? '—'
     : `${player.leaguePoints} LP`;
 
   const totalGames = (player.wins || 0) + (player.losses || 0);
   const recordHtml = totalGames > 0
     ? `${player.wins}W / ${player.losses}L &mdash; <span class="win-rate ${player.winRate >= 50 ? 'positive' : 'negative'}">${player.winRate}% WR</span>`
     : 'No games played';
-
-  const progressLabelLeft = player.atMasters
-    ? `Masters — ${player.leaguePoints} LP`
-    : `${player.totalLP} / ${MASTERS_THRESHOLD} LP`;
-
-  const progressLabelRight = `<span class="progress-pct">${player.progressPct.toFixed(1)}%</span>`;
 
   const mastersBanner = player.atMasters
     ? `<div class="masters-banner">&#9733; Reached ${TIER_DISPLAY[tier]}!</div>`
@@ -179,6 +372,10 @@ function renderCard(player, position) {
   const errorMsg = player.error
     ? `<div class="card-error-msg">&#9888; ${player.error}</div>`
     : '';
+
+  const champHtml = renderChampions(player);
+  const graphHtml = renderGraphPanel(player);
+  const graphKey = playerKey(player.gameName, player.tagLine).replace(/[^a-z0-9]/g, '-');
 
   return `
     <div class="player-card ${rankClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}">
@@ -194,68 +391,201 @@ function renderCard(player, position) {
         <span class="tier-badge">${tierDisplay}</span>
         <span class="lp-display">${lpDisplay}</span>
       </div>
+      ${champHtml}
       <div class="card-record">${recordHtml}</div>
-      <div class="progress-section">
-        <div class="progress-label">
-          <span>${progressLabelLeft}</span>
-          ${progressLabelRight}
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" style="width: ${player.progressPct}%"></div>
-        </div>
-      </div>
       ${mastersBanner}
       ${errorMsg}
+      <div class="card-footer">
+        <button class="btn-graph-toggle" data-graph-key="${graphKey}">LP History</button>
+        <div class="graph-panel" id="graph-${graphKey}">
+          ${graphHtml}
+        </div>
+      </div>
     </div>`;
 }
 
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function renderChampions(player) {
+  if (!player.champions || player.champions.length === 0) return '';
+  const ver = ddVersion || '15.7.1';
+  const icons = player.champions.map(name =>
+    `<img class="champion-icon" src="${championIconUrl(name, ver)}" alt="${escHtml(name)}" title="${escHtml(name)}" loading="lazy">`
+  ).join('');
+  return `<div class="card-champions">${icons}</div>`;
 }
 
-/* ─── Refresh ────────────────────────────────────────────────────────────────── */
-async function refreshAll() {
-  const players = loadPlayers();
-  if (players.length === 0) {
-    renderLeaderboard();
+function renderGraphPanel(player) {
+  const history = getPlayerLPHistory(player.gameName, player.tagLine);
+
+  function lpChangeSince(ms) {
+    const cutoff = Date.now() - ms;
+    const inRange = history.filter(e => e.ts >= cutoff);
+    if (inRange.length === 0 || history.length === 0) return null;
+    return history[history.length - 1].lp - inRange[0].lp;
+  }
+
+  function formatChange(val) {
+    if (val === null) return `<span class="neutral">—</span>`;
+    if (val > 0)  return `<span class="positive">+${val} LP</span>`;
+    if (val < 0)  return `<span class="negative">${val} LP</span>`;
+    return `<span class="neutral">±0 LP</span>`;
+  }
+
+  const change7  = lpChangeSince(7  * 24 * 60 * 60 * 1000);
+  const change30 = lpChangeSince(30 * 24 * 60 * 60 * 1000);
+
+  const statsHtml = `
+    <div class="graph-stats">
+      <div class="graph-stat">Last 7 days<span>${formatChange(change7)}</span></div>
+      <div class="graph-stat">Last 30 days<span>${formatChange(change30)}</span></div>
+    </div>`;
+
+  const chartHtml = history.length >= 2
+    ? buildSVGChart(history)
+    : `<p class="graph-no-data">Refresh a few more times to build history.</p>`;
+
+  return statsHtml + chartHtml;
+}
+
+function buildSVGChart(history) {
+  const W = 300, H = 80;
+  const PAD = { top: 8, right: 8, bottom: 8, left: 8 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top - PAD.bottom;
+
+  const lps = history.map(e => e.lp);
+  const minLP = Math.min(...lps);
+  const maxLP = Math.max(...lps);
+  const range = maxLP - minLP || 1;
+
+  const pts = history.map((e, i) => {
+    const x = PAD.left + (i / (history.length - 1)) * cW;
+    const y = PAD.top + (1 - (e.lp - minLP) / range) * cH;
+    return [x.toFixed(1), y.toFixed(1)];
+  });
+
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ');
+  const bottomY  = (PAD.top + cH).toFixed(1);
+  const areaPath = `${linePath} L${pts[pts.length - 1][0]} ${bottomY} L${pts[0][0]} ${bottomY} Z`;
+
+  const [lastX, lastY] = pts[pts.length - 1];
+
+  return `
+    <svg class="lp-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path class="chart-area" d="${areaPath}"/>
+      <path class="chart-line" d="${linePath}"/>
+      <circle class="chart-dot" cx="${lastX}" cy="${lastY}" r="3"/>
+    </svg>`;
+}
+
+/* ─── Rankings Tab ───────────────────────────────────────────────────────────── */
+function renderRankingsTab() {
+  const container = document.getElementById('rankings-list');
+  if (!container) return;
+
+  const sorted = [...enrichedPlayers]
+    .filter(p => !p.loading)
+    .sort((a, b) => (b.totalLP || 0) - (a.totalLP || 0));
+
+  if (sorted.length === 0) {
+    container.innerHTML = `<div class="empty-state"><h2>No players</h2><p>Add players on the Cards tab.</p></div>`;
     return;
   }
 
-  const refreshBtn = document.getElementById('btn-refresh-all');
-  refreshBtn.disabled = true;
-  refreshBtn.textContent = 'Refreshing...';
-
-  // Set all to loading state first
-  for (const p of players) {
-    const existing = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
-    if (!existing) {
-      upsertPlayer({ gameName: p.gameName, tagLine: p.tagLine, loading: true, totalLP: 0, progressPct: 0 });
+  container.innerHTML = sorted.map((p, i) => {
+    const pos = i + 1;
+    const change = getWeeklyPositionChange(p.gameName, p.tagLine, pos);
+    let changeBadge;
+    if (change === null) {
+      changeBadge = `<span class="pos-change new">NEW</span>`;
+    } else if (change > 0) {
+      changeBadge = `<span class="pos-change up">&#9650; ${change}</span>`;
+    } else if (change < 0) {
+      changeBadge = `<span class="pos-change down">&#9660; ${Math.abs(change)}</span>`;
     } else {
-      existing.loading = true;
+      changeBadge = `<span class="pos-change same">&#8212;</span>`;
     }
-  }
-  renderLeaderboard();
 
-  // Fetch sequentially to respect rate limits
-  for (const p of players) {
-    try {
-      const data = await fetchPlayerData(p.gameName, p.tagLine);
-      upsertPlayer(data);
-    } catch (err) {
-      upsertPlayer({ gameName: p.gameName, tagLine: p.tagLine, loading: false, error: err.message, totalLP: 0, progressPct: 0 });
-    }
-    renderLeaderboard();
-  }
+    const tier = p.tier || 'UNRANKED';
+    const tierStr = tier === 'UNRANKED' ? 'Unranked'
+      : MASTERS_TIERS.has(tier) ? `${TIER_DISPLAY[tier]} — ${p.leaguePoints} LP`
+      : `${TIER_DISPLAY[tier]} ${p.rank} — ${p.leaguePoints} LP`;
 
-  refreshBtn.disabled = false;
-  refreshBtn.textContent = 'Refresh All';
+    const opggName = `${encodeURIComponent(p.gameName)}-${encodeURIComponent(p.tagLine)}`;
+
+    return `
+      <div class="ranking-row" data-tier="${tier}">
+        <div class="ranking-pos">#${pos}</div>
+        <div class="ranking-name">
+          <div class="game-name">${escHtml(p.gameName)}</div>
+          <div class="tag-line">#${escHtml(p.tagLine)}</div>
+        </div>
+        <div class="ranking-rank">${tierStr}</div>
+        ${changeBadge}
+        <a href="https://www.op.gg/summoners/na/${opggName}" target="_blank" rel="noopener" class="btn-opgg">op.gg</a>
+      </div>`;
+  }).join('');
 }
 
-/* ─── Add Player ─────────────────────────────────────────────────────────────── */
+/* ─── Number Line Tab ────────────────────────────────────────────────────────── */
+function lpToX(lp) {
+  const usable = NL_TRACK_WIDTH - NL_PADDING_LEFT - NL_PADDING_RIGHT;
+  return NL_PADDING_LEFT + (Math.min(lp, NL_LP_MAX) / NL_LP_MAX) * usable;
+}
+
+function renderNumberLineTab() {
+  const track = document.getElementById('numberline-track');
+  if (!track) return;
+
+  let html = '';
+
+  // Baseline
+  html += `<div class="nl-baseline"></div>`;
+
+  // Tier zones
+  NL_ZONES.forEach(zone => {
+    const x1 = lpToX(zone.start);
+    const x2 = lpToX(zone.end);
+    const w  = x2 - x1;
+    html += `<div class="nl-zone" style="left:${x1}px;width:${w}px;background:${zone.color}18;border-bottom:2px solid ${zone.color}55;"></div>`;
+    html += `<div class="nl-tier-label" style="left:${x1}px;color:${zone.color};">${zone.tier}</div>`;
+  });
+
+  // Players
+  const players = [...enrichedPlayers]
+    .filter(p => !p.loading && !p.error && p.tier && p.tier !== 'UNRANKED')
+    .sort((a, b) => (b.totalLP || 0) - (a.totalLP || 0));
+
+  players.forEach((p, i) => {
+    const x = lpToX(p.totalLP);
+    const isBelow = i % 2 === 1;
+    const color = getTierColor(p.tier);
+
+    const badgeStr = MASTERS_TIERS.has(p.tier)
+      ? `${TIER_DISPLAY[p.tier]} ${p.leaguePoints} LP`
+      : `${TIER_DISPLAY[p.tier]} ${p.rank}`;
+
+    // Label positions
+    const labelTop    = isBelow ? 158 : 72;
+    const connTop     = isBelow ? 141 : 88;
+    const connHeight  = isBelow ? 17 : 51;
+
+    html += `
+      <div class="nl-player-label" style="left:${x}px;top:${labelTop}px;">
+        <span class="nl-player-name">${escHtml(p.gameName)}</span>
+        <span class="nl-player-tier" style="color:${color};">${badgeStr}</span>
+      </div>
+      <div class="nl-connector" style="left:${x}px;top:${connTop}px;height:${connHeight}px;"></div>
+      <div class="nl-dot" style="left:${x}px;background:${color};" title="${escHtml(p.gameName)} — ${badgeStr}"></div>`;
+  });
+
+  if (players.length === 0) {
+    html += `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-muted);font-size:13px;">No ranked players to display</div>`;
+  }
+
+  track.innerHTML = html;
+}
+
+/* ─── Add / Remove Player ────────────────────────────────────────────────────── */
 async function addPlayer(riotId) {
   const hashIdx = riotId.lastIndexOf('#');
   if (hashIdx === -1 || hashIdx === 0 || hashIdx === riotId.length - 1) {
@@ -263,23 +593,30 @@ async function addPlayer(riotId) {
   }
 
   const gameName = riotId.slice(0, hashIdx).trim();
-  const tagLine = riotId.slice(hashIdx + 1).trim();
+  const tagLine  = riotId.slice(hashIdx + 1).trim();
 
-  if (!gameName || !tagLine) {
-    throw new Error('Use format: GameName#TAG');
-  }
+  if (!gameName || !tagLine) throw new Error('Use format: GameName#TAG');
 
   const players = loadPlayers();
-  const key = playerKey(gameName, tagLine);
-  if (players.some(p => playerKey(p.gameName, p.tagLine) === key)) {
+  if (players.some(p => playerKey(p.gameName, p.tagLine) === playerKey(gameName, tagLine))) {
     throw new Error('Player already added');
   }
 
   const data = await fetchPlayerData(gameName, tagLine);
 
+  // Fetch champions immediately on add
+  await getDDragonVersion();
+  let champions = getCachedChampions(data.gameName, data.tagLine);
+  if (champions === null && data.puuid) {
+    champions = await fetchChampions(data.puuid);
+    cacheChampions(data.gameName, data.tagLine, champions);
+  }
+  data.champions = champions || [];
+
   players.push({ gameName: data.gameName, tagLine: data.tagLine });
   savePlayers(players);
   upsertPlayer(data);
+  recordLPSnapshot(data.gameName, data.tagLine, data.totalLP);
   renderLeaderboard();
 }
 
@@ -288,6 +625,8 @@ function removePlayer(gameName, tagLine) {
   savePlayers(players);
   removePlayerFromState(gameName, tagLine);
   renderLeaderboard();
+  if (activeTab === 'rankings') renderRankingsTab();
+  if (activeTab === 'numberline') renderNumberLineTab();
 }
 
 /* ─── Modal ──────────────────────────────────────────────────────────────────── */
@@ -316,10 +655,7 @@ async function handleModalConfirm() {
   const input = document.getElementById('input-riot-id').value.trim();
   const confirmBtn = document.getElementById('btn-modal-confirm');
 
-  if (!input) {
-    showModalError('Enter a Riot ID');
-    return;
-  }
+  if (!input) { showModalError('Enter a Riot ID'); return; }
 
   hideModalError();
   confirmBtn.disabled = true;
@@ -336,6 +672,15 @@ async function handleModalConfirm() {
   }
 }
 
+/* ─── HTML Escape ────────────────────────────────────────────────────────────── */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /* ─── Event Listeners ────────────────────────────────────────────────────────── */
 function setupEventListeners() {
   document.getElementById('btn-add-player').addEventListener('click', openModal);
@@ -343,28 +688,59 @@ function setupEventListeners() {
   document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
   document.getElementById('btn-modal-confirm').addEventListener('click', handleModalConfirm);
 
-  // Close modal on overlay click
   document.getElementById('modal-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
   });
 
-  // Close modal on Escape, confirm on Enter
   document.getElementById('input-riot-id').addEventListener('keydown', e => {
     if (e.key === 'Enter') handleModalConfirm();
     if (e.key === 'Escape') closeModal();
   });
 
-  // Event delegation for remove buttons
+  // Card event delegation (remove + graph toggle)
   document.getElementById('leaderboard').addEventListener('click', e => {
-    const btn = e.target.closest('.btn-remove');
-    if (btn) {
-      removePlayer(btn.dataset.gameName, btn.dataset.tagLine);
+    const removeBtn = e.target.closest('.btn-remove');
+    if (removeBtn) {
+      removePlayer(removeBtn.dataset.gameName, removeBtn.dataset.tagLine);
+      return;
     }
+
+    const graphBtn = e.target.closest('.btn-graph-toggle');
+    if (graphBtn) {
+      const panel = document.getElementById(`graph-${graphBtn.dataset.graphKey}`);
+      if (panel) panel.classList.toggle('open');
+    }
+  });
+
+  // Number line arrows
+  document.getElementById('nl-left').addEventListener('click', () => {
+    document.getElementById('numberline-scroll').scrollBy({ left: -window.innerWidth, behavior: 'smooth' });
+  });
+  document.getElementById('nl-right').addEventListener('click', () => {
+    document.getElementById('numberline-scroll').scrollBy({ left: window.innerWidth, behavior: 'smooth' });
+  });
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      if (tab === activeTab) return;
+      activeTab = tab;
+
+      document.querySelectorAll('.tab-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === tab));
+      document.querySelectorAll('.tab-panel').forEach(p =>
+        p.classList.toggle('active', p.id === `tab-${tab}`));
+
+      if (tab === 'rankings') renderRankingsTab();
+      if (tab === 'numberline') renderNumberLineTab();
+    });
   });
 }
 
 /* ─── Init ───────────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
+  getDDragonVersion(); // warm up version cache
   refreshAll();
 });
