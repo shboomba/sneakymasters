@@ -43,6 +43,8 @@ export default async function handler(req, res) {
       headers: { 'X-Riot-Token': RIOT_KEY }
     });
 
+    console.log('Summoner API status:', summonerRes.status);
+
     if (summonerRes.status === 403) {
       return res.status(403).json({ error: 'API key invalid or expired — renew at developer.riotgames.com' });
     }
