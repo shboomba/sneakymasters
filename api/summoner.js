@@ -19,6 +19,8 @@ export default async function handler(req, res) {
       headers: { 'X-Riot-Token': RIOT_KEY }
     });
 
+    console.log('Account API status:', accountRes.status, '| Key prefix:', RIOT_KEY.slice(0, 10));
+
     if (accountRes.status === 403) {
       return res.status(403).json({ error: 'API key invalid or expired — renew at developer.riotgames.com' });
     }
