@@ -1,6 +1,5 @@
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
 const STARRED_KEY     = 'rtm_starred';
-const LP_HISTORY_KEY  = 'rtm_lp_history';
 const POS_HISTORY_KEY = 'rtm_pos_history';
 const CHAMPIONS_KEY   = 'rtm_champions';
 
@@ -111,28 +110,40 @@ function isStarred(gameName, tagLine) {
   return loadStarred().has(playerKey(gameName, tagLine));
 }
 
-/* ─── LocalStorage: LP History ───────────────────────────────────────────────── */
-function loadLPHistory() {
-  try { return JSON.parse(localStorage.getItem(LP_HISTORY_KEY)) || {}; }
-  catch { return {}; }
+/* ─── LP History (shared via KV) ─────────────────────────────────────────────── */
+let lpHistoryCache = {};
+
+async function fetchLPHistory() {
+  try {
+    const res = await fetch('/api/lp-history');
+    const data = await res.json();
+    lpHistoryCache = data.history || {};
+  } catch {
+    lpHistoryCache = {};
+  }
 }
 
-function saveLPHistory(h) {
-  localStorage.setItem(LP_HISTORY_KEY, JSON.stringify(h));
-}
-
-function recordLPSnapshot(gameName, tagLine, totalLP) {
+async function recordLPSnapshot(gameName, tagLine, totalLP) {
   const key = playerKey(gameName, tagLine);
-  const h = loadLPHistory();
-  if (!h[key]) h[key] = [];
-  h[key].push({ ts: Date.now(), lp: totalLP });
-  if (h[key].length > LP_HISTORY_MAX) h[key] = h[key].slice(-LP_HISTORY_MAX);
-  saveLPHistory(h);
+  const snapshot = { ts: Date.now(), lp: totalLP };
+
+  // Update local cache immediately
+  if (!lpHistoryCache[key]) lpHistoryCache[key] = [];
+  lpHistoryCache[key].push(snapshot);
+  if (lpHistoryCache[key].length > LP_HISTORY_MAX) {
+    lpHistoryCache[key] = lpHistoryCache[key].slice(-LP_HISTORY_MAX);
+  }
+
+  // Persist to shared KV (fire and forget — don't block rendering)
+  fetch('/api/lp-history', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, snapshot })
+  }).catch(() => {});
 }
 
 function getPlayerLPHistory(gameName, tagLine) {
-  const h = loadLPHistory();
-  return h[playerKey(gameName, tagLine)] || [];
+  return lpHistoryCache[playerKey(gameName, tagLine)] || [];
 }
 
 /* ─── LocalStorage: Position History ────────────────────────────────────────── */
@@ -284,7 +295,7 @@ function getTierColor(tier) {
 
 /* ─── Refresh ────────────────────────────────────────────────────────────────── */
 async function refreshAll() {
-  const players = await loadPlayers();
+  const [players] = await Promise.all([loadPlayers(), fetchLPHistory()]);
   if (players.length === 0) {
     renderLeaderboard();
     return;
@@ -647,6 +658,7 @@ async function addPlayer(riotId) {
 
   // Validate with Riot API first
   const data = await fetchPlayerData(gameName, tagLine);
+  await fetchLPHistory();
 
   // Save to shared list (throws if already added)
   await addPlayerToList(data.gameName, data.tagLine);
