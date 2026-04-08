@@ -211,16 +211,18 @@ main {
 .btn-remove {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: transparent;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   padding: 2px 4px;
   border-radius: 4px;
-  transition: var(--transition);
+  transition: color 0.3s ease, background 0.3s ease;
   flex-shrink: 0;
+  opacity: 0;
 }
-.btn-remove:hover { color: var(--error); background: #e0525215; }
+.player-card:hover .btn-remove { opacity: 0.25; color: var(--text-muted); }
+.player-card:hover .btn-remove:hover { opacity: 1; color: var(--error); background: #e0525215; }
 
 /* ─── Card Rank Info ─────────────────────────────────────────────────────────── */
 .card-rank-info {
