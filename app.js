@@ -49,10 +49,18 @@ const NL_ZONES = [
   { tier: 'MASTER+',  start: 2800, end: 2900, color: '#d7a2e8' },
 ];
 
+const ARRANGE_KEY = 'rtm_arrange_order';
+
 /* ─── In-Memory State ────────────────────────────────────────────────────────── */
 let enrichedPlayers = [];
 let activeTab = 'cards';
+let layoutMode = 'leaderboard'; // 'leaderboard' | 'arrange'
 let ddVersion = null; // cached Data Dragon version
+
+function getSavedOrder() {
+  try { return JSON.parse(localStorage.getItem(ARRANGE_KEY)) || []; } catch { return []; }
+}
+function saveOrder(keys) { localStorage.setItem(ARRANGE_KEY, JSON.stringify(keys)); }
 
 /* ─── LP Math ────────────────────────────────────────────────────────────────── */
 function computeTotalLP(tier, rank, lp) {
@@ -194,12 +202,12 @@ function getCachedChampions(gameName, tagLine) {
   const entry = c[playerKey(gameName, tagLine)];
   if (!entry) return null;
   if (Date.now() - entry.ts > CHAMPION_TTL) return null;
-  return entry.champions;
+  return { champions: entry.champions, streak: entry.streak || null };
 }
 
-function cacheChampions(gameName, tagLine, champions) {
+function cacheChampions(gameName, tagLine, champions, streak) {
   const c = loadChampionCache();
-  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions };
+  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions, streak: streak || null };
   saveChampionCache(c);
 }
 
@@ -224,11 +232,11 @@ function championIconUrl(championName, version) {
 async function fetchChampions(puuid) {
   try {
     const res = await fetch(`/api/champions?puuid=${encodeURIComponent(puuid)}`);
-    if (!res.ok) return [];
+    if (!res.ok) return { champions: [], streak: null };
     const data = await res.json();
-    return data.champions || [];
+    return { champions: data.champions || [], streak: data.streak || null };
   } catch {
-    return [];
+    return { champions: [], streak: null };
   }
 }
 
@@ -341,13 +349,16 @@ async function refreshAll() {
   // Fetch champions (cache-aware, sequential)
   await getDDragonVersion();
   for (const p of sorted) {
-    let champions = getCachedChampions(p.gameName, p.tagLine);
-    if (champions === null && p.puuid) {
-      champions = await fetchChampions(p.puuid);
-      cacheChampions(p.gameName, p.tagLine, champions);
+    let cached = getCachedChampions(p.gameName, p.tagLine);
+    if (cached === null && p.puuid) {
+      cached = await fetchChampions(p.puuid);
+      cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak);
     }
     const state = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
-    if (state) state.champions = champions || [];
+    if (state) {
+      state.champions = cached?.champions || [];
+      state.streak = cached?.streak || null;
+    }
   }
 
   renderLeaderboard();
@@ -372,30 +383,73 @@ function renderLeaderboard() {
   }
 
   const starred = loadStarred();
-  const sorted = [...enrichedPlayers].sort((a, b) => {
-    if (a.loading && !b.loading) return 1;
-    if (!a.loading && b.loading) return -1;
-    const aStarred = starred.has(playerKey(a.gameName, a.tagLine));
-    const bStarred = starred.has(playerKey(b.gameName, b.tagLine));
-    if (aStarred && !bStarred) return -1;
-    if (!aStarred && bStarred) return 1;
-    return (b.totalLP || 0) - (a.totalLP || 0);
-  });
+  let sorted;
 
-  board.innerHTML = sorted.map((player, i) => renderCard(player, i + 1)).join('');
+  if (layoutMode === 'arrange') {
+    const savedOrder = getSavedOrder();
+    if (savedOrder.length > 0) {
+      sorted = [...enrichedPlayers].sort((a, b) => {
+        const aIdx = savedOrder.indexOf(playerKey(a.gameName, a.tagLine));
+        const bIdx = savedOrder.indexOf(playerKey(b.gameName, b.tagLine));
+        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+        if (aIdx !== -1) return -1;
+        if (bIdx !== -1) return 1;
+        return (b.totalLP || 0) - (a.totalLP || 0);
+      });
+    } else {
+      sorted = [...enrichedPlayers].sort((a, b) => (b.totalLP || 0) - (a.totalLP || 0));
+    }
+  } else {
+    sorted = [...enrichedPlayers].sort((a, b) => {
+      if (a.loading && !b.loading) return 1;
+      if (!a.loading && b.loading) return -1;
+      const aStarred = starred.has(playerKey(a.gameName, a.tagLine));
+      const bStarred = starred.has(playerKey(b.gameName, b.tagLine));
+      if (aStarred && !bStarred) return -1;
+      if (!aStarred && bStarred) return 1;
+      return (b.totalLP || 0) - (a.totalLP || 0);
+    });
+  }
+
+  const draggable = layoutMode === 'arrange';
+  board.innerHTML = sorted.map((player, i) => renderCard(player, i + 1, draggable)).join('');
+
+  if (draggable) {
+    let dragSrc = null;
+    board.querySelectorAll('.player-card').forEach(card => {
+      card.addEventListener('dragstart', () => { dragSrc = card; card.classList.add('dragging'); });
+      card.addEventListener('dragend', () => {
+        dragSrc = null;
+        board.querySelectorAll('.player-card').forEach(c => c.classList.remove('drag-over', 'dragging'));
+      });
+      card.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('drop', e => {
+        e.preventDefault();
+        if (!dragSrc || dragSrc === card) return;
+        card.classList.remove('drag-over');
+        const cards = [...board.querySelectorAll('.player-card')];
+        const srcIdx = cards.indexOf(dragSrc);
+        const dstIdx = cards.indexOf(card);
+        cards.splice(srcIdx, 1);
+        cards.splice(dstIdx, 0, dragSrc);
+        saveOrder(cards.map(c => c.dataset.playerKey));
+        renderLeaderboard();
+      });
+    });
+  }
 }
 
-function renderCard(player, position) {
+function renderCard(player, position, draggable = false) {
   const tier = player.tier || 'UNRANKED';
   const rankClasses = ['rank-first', 'rank-second', 'rank-third'];
   const rankClass = position <= 3 ? rankClasses[position - 1] : '';
-  const posLabel = `#${position}`;
+  const pKey = playerKey(player.gameName, player.tagLine);
 
   if (player.loading) {
     return `
-      <div class="player-card card-loading" data-tier="UNRANKED">
+      <div class="player-card card-loading" data-tier="UNRANKED" data-player-key="${pKey}">
         <div class="card-header">
-          <div class="card-rank-badge">${posLabel}</div>
           <div class="card-identity">
             <div class="skeleton skeleton-name"></div>
             <div class="skeleton skeleton-tag"></div>
@@ -424,19 +478,22 @@ function renderCard(player, position) {
     ? `<div class="masters-banner">&#9733; Reached ${TIER_DISPLAY[tier]}!</div>`
     : '';
 
+  const streakBanner = player.streak && player.streak.count >= 3
+    ? `<div class="streak-banner streak-banner-${player.streak.type}">${player.streak.type === 'win' ? '🔥' : '💀'} ${player.streak.count} ${player.streak.type === 'win' ? 'Win' : 'Loss'} Streak</div>`
+    : '';
+
   const errorMsg = player.error
     ? `<div class="card-error-msg">&#9888; ${player.error}</div>`
     : '';
 
   const champHtml = renderChampions(player);
   const graphHtml = renderGraphPanel(player);
-  const graphKey = playerKey(player.gameName, player.tagLine).replace(/[^a-z0-9]/g, '-');
+  const graphKey = pKey.replace(/[^a-z0-9]/g, '-');
   const starred = isStarred(player.gameName, player.tagLine);
 
   return `
-    <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}">
+    <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
       <div class="card-header">
-        <div class="card-rank-badge">${posLabel}</div>
         <div class="card-identity">
           <div class="card-game-name">${escHtml(player.gameName)}</div>
           <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
@@ -451,6 +508,7 @@ function renderCard(player, position) {
       ${champHtml}
       <div class="card-record">${recordHtml}</div>
       ${mastersBanner}
+      ${streakBanner}
       ${errorMsg}
       <div class="card-footer">
         <button class="btn-graph-toggle" data-graph-key="${graphKey}">LP History</button>
@@ -715,12 +773,13 @@ async function addPlayer(riotId) {
 
   // Fetch champions immediately on add
   await getDDragonVersion();
-  let champions = getCachedChampions(data.gameName, data.tagLine);
-  if (champions === null && data.puuid) {
-    champions = await fetchChampions(data.puuid);
-    cacheChampions(data.gameName, data.tagLine, champions);
+  let cached = getCachedChampions(data.gameName, data.tagLine);
+  if (cached === null && data.puuid) {
+    cached = await fetchChampions(data.puuid);
+    cacheChampions(data.gameName, data.tagLine, cached.champions, cached.streak);
   }
-  data.champions = champions || [];
+  data.champions = cached?.champions || [];
+  data.streak = cached?.streak || null;
 
   upsertPlayer(data);
   recordLPSnapshot(data.gameName, data.tagLine, data.totalLP);
@@ -823,6 +882,16 @@ function setupEventListeners() {
       const panel = document.getElementById(`graph-${graphBtn.dataset.graphKey}`);
       if (panel) panel.classList.toggle('open');
     }
+  });
+
+  // Layout mode toggle
+  document.querySelectorAll('.layout-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      layoutMode = btn.dataset.layout;
+      document.querySelectorAll('.layout-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.layout === layoutMode));
+      renderLeaderboard();
+    });
   });
 
   // Number line arrows

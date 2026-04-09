@@ -48,7 +48,7 @@ header {
 }
 
 .header-inner {
-  max-width: 1100px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 0 24px;
   display: flex;
@@ -82,7 +82,7 @@ header h1 {
 
 /* ─── Tab Nav ────────────────────────────────────────────────────────────────── */
 .tab-nav {
-  max-width: 1100px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 0 24px;
   display: flex;
@@ -146,7 +146,7 @@ header h1 {
 
 /* ─── Main / Leaderboard ─────────────────────────────────────────────────────── */
 main {
-  max-width: 1100px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 32px 24px;
 }
@@ -337,6 +337,50 @@ main {
   font-family: 'Cinzel', serif;
   letter-spacing: 0.04em;
 }
+
+/* ─── Streak Banner ──────────────────────────────────────────────────────────── */
+.streak-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.streak-banner-win  { background: linear-gradient(90deg, #7a2c00, #c94a00); color: #ffd6b0; border: 1px solid #e05a00; }
+.streak-banner-loss { background: linear-gradient(90deg, #1a1a2e, #3a1a1a); color: #c07070; border: 1px solid #5a2020; }
+
+/* ─── Leaderboard Toolbar ────────────────────────────────────────────────────── */
+.leaderboard-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.layout-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+  letter-spacing: 0.03em;
+}
+.layout-btn:hover { border-color: #2a3a4e; color: var(--text-primary); }
+.layout-btn.active { border-color: var(--gold); color: var(--gold); }
+
+/* ─── Drag-and-Drop ──────────────────────────────────────────────────────────── */
+.player-card.draggable-card { cursor: grab; }
+.player-card.draggable-card:active { cursor: grabbing; }
+.player-card.dragging { opacity: 0.4; }
+.player-card.drag-over { outline: 2px dashed var(--gold); outline-offset: 2px; }
 
 /* ─── Graph Toggle ───────────────────────────────────────────────────────────── */
 .card-footer {

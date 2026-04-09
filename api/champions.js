@@ -32,8 +32,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ champions: [] });
     }
 
-    // Fetch each match and count champion plays
+    // Fetch each match and count champion plays + detect streak
     const champCounts = {};
+    let streakType = null, streakCount = 0, streakDone = false;
 
     for (const matchId of matchIds) {
       try {
@@ -45,9 +46,24 @@ export default async function handler(req, res) {
 
         const match = await matchRes.json();
         const participant = match?.info?.participants?.find(p => p.puuid === puuid);
-        if (!participant?.championName) continue;
+        if (!participant) continue;
 
-        champCounts[participant.championName] = (champCounts[participant.championName] || 0) + 1;
+        if (participant.championName) {
+          champCounts[participant.championName] = (champCounts[participant.championName] || 0) + 1;
+        }
+
+        // Streak: matchIds are newest-first, so first processed = most recent game
+        if (!streakDone) {
+          const won = participant.win;
+          if (streakType === null) {
+            streakType = won ? 'win' : 'loss';
+            streakCount = 1;
+          } else if ((won && streakType === 'win') || (!won && streakType === 'loss')) {
+            streakCount++;
+          } else {
+            streakDone = true;
+          }
+        }
       } catch {
         continue;
       }
@@ -58,7 +74,9 @@ export default async function handler(req, res) {
       .slice(0, 3)
       .map(([name]) => name);
 
-    return res.status(200).json({ champions: top3 });
+    const streak = streakType ? { type: streakType, count: streakCount } : null;
+
+    return res.status(200).json({ champions: top3, streak });
 
   } catch {
     return res.status(200).json({ champions: [] });
