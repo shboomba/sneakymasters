@@ -34,7 +34,7 @@ const MASTERS_TIERS = new Set(['MASTER', 'GRANDMASTER', 'CHALLENGER']);
 
 const ROLE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 const ROLE_DISPLAY = { TOP: 'Top', JUNGLE: 'Jungle', MIDDLE: 'Mid', BOTTOM: 'ADC', UTILITY: 'Support' };
-const ROLE_SLUG = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'bottom', UTILITY: 'support' };
+const ROLE_SLUG = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'bottom', UTILITY: 'utility' };
 
 function roleIconUrl(role) {
   const slug = ROLE_SLUG[role];
@@ -547,12 +547,12 @@ function renderCard(player, position, draggable = false) {
         <div class="card-identity">
           <div class="card-name-row">
             <div class="card-game-name">${escHtml(player.gameName)}</div>
-            ${player.roles && player.roles.length > 0
-              ? player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')
-              : ''}
           </div>
           <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
         </div>
+        ${player.roles && player.roles.length > 0
+          ? `<div class="card-roles">${player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')}</div>`
+          : ''}
         <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
         <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
       </div>
