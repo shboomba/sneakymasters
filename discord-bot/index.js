@@ -207,7 +207,9 @@ client.once('ready', () => {
   console.log(`Bot online: ${client.user.tag}`);
 
   // Daily update at 9am UTC
-  cron.schedule('0 9 * * *', () => {
+  // 11:59 PM PST (UTC-8) = 07:59 UTC
+  // Note: during PDT (summer, UTC-7) this fires at 12:59 AM — set to 06:59 UTC if you prefer PDT
+  cron.schedule('59 7 * * *', () => {
     console.log('Posting daily update...');
     postDailyUpdate();
   });
