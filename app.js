@@ -719,10 +719,10 @@ function nlAssignLanes(items) {
 }
 
 // Render one horizontal track with its own LP coordinate range
-function renderNLTrack(players, title, lpMin, lpMax) {
+function renderNLTrack(players, title, lpMin, lpMax, trackWidth) {
   if (players.length === 0) return '';
 
-  const usable = NL_TRACK_WIDTH - NL_PADDING_LEFT - NL_PADDING_RIGHT;
+  const usable = trackWidth - NL_PADDING_LEFT - NL_PADDING_RIGHT;
   const toX = lp => NL_PADDING_LEFT + ((Math.min(Math.max(lp, lpMin), lpMax) - lpMin) / (lpMax - lpMin)) * usable;
 
   const items = players.map(p => ({ p, x: toX(p.totalLP) }));
@@ -733,7 +733,7 @@ function renderNLTrack(players, title, lpMin, lpMax) {
   const trackH = baselineY + 50;
 
   let html = `<div class="nl-track-title">${title}</div>`;
-  html += `<div class="nl-track-section" style="height:${trackH}px;">`;
+  html += `<div class="nl-track-section" style="height:${trackH}px;width:${trackWidth}px;">`;
 
   // Baseline
   html += `<div class="nl-baseline" style="top:${baselineY}px;"></div>`;
@@ -792,9 +792,13 @@ function renderNumberLineTab() {
   const topGroup    = players.filter(p => (p.totalLP || 0) >= NL_SPLIT_LP);
   const bottomGroup = players.filter(p => (p.totalLP || 0) <  NL_SPLIT_LP);
 
+  const scrollEl = document.getElementById('numberline-scroll');
+  const trackWidth = scrollEl.clientWidth || window.innerWidth;
+
   track.style.height = 'auto';
-  const topHtml    = topGroup.length    ? renderNLTrack(topGroup,    'Platinum+',    NL_SPLIT_LP, NL_LP_MAX) : '';
-  const bottomHtml = bottomGroup.length ? renderNLTrack(bottomGroup, 'Gold & Below', 0,           NL_SPLIT_LP) : '';
+  track.style.width  = trackWidth + 'px';
+  const topHtml    = topGroup.length    ? renderNLTrack(topGroup,    'Platinum+',    NL_SPLIT_LP, NL_LP_MAX,   trackWidth) : '';
+  const bottomHtml = bottomGroup.length ? renderNLTrack(bottomGroup, 'Gold & Below', 0,           NL_SPLIT_LP, trackWidth) : '';
   const divider    = topHtml && bottomHtml ? `<div class="nl-track-divider"></div>` : '';
   track.innerHTML  = topHtml + divider + bottomHtml;
 
@@ -1032,4 +1036,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSuggestionWidget();
   getDDragonVersion(); // warm up version cache
   refreshAll();
+});
+
+window.addEventListener('resize', () => {
+  if (activeTab === 'numberline') renderNumberLineTab();
 });

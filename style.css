@@ -641,31 +641,25 @@ main {
   display: flex;
   align-items: flex-start;
   min-height: 280px;
-  padding: 0 48px;
+  padding: 0 24px;
 }
 
 #numberline-scroll {
   flex: 1;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  overflow: hidden;
 }
-
-#numberline-scroll::-webkit-scrollbar { height: 4px; }
-#numberline-scroll::-webkit-scrollbar-track { background: transparent; }
-#numberline-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 #numberline-track {
   position: relative;
-  width: 3200px;
+  width: 100%;
   min-height: 280px;
-  /* height set dynamically by JS */
+  /* width and height set dynamically by JS */
 }
 
 .nl-baseline {
   position: absolute;
   left: 0;
-  width: 3200px;
+  right: 0;
   height: 2px;
   background: var(--border);
   /* top set by JS */
@@ -760,30 +754,7 @@ main {
   z-index: 1;
 }
 
-.nl-arrow {
-  position: sticky;
-  top: 50%;
-  z-index: 10;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  font-size: 18px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition);
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin-top: 100px;
-}
-
-.nl-arrow:hover { border-color: var(--gold-dark); color: var(--gold); }
-.nl-arrow-left  { left: 4px; }
-.nl-arrow-right { right: 4px; }
+.nl-arrow { display: none; }
 
 /* ─── Modal ──────────────────────────────────────────────────────────────────── */
 .modal-overlay {
