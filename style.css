@@ -356,11 +356,17 @@ main {
 /* ─── Leaderboard Toolbar ────────────────────────────────────────────────────── */
 .leaderboard-toolbar {
   display: flex;
-  gap: 6px;
+  gap: 12px;
   margin-bottom: 16px;
+  align-items: center;
 }
 
-.layout-btn {
+.toolbar-group {
+  display: flex;
+  gap: 4px;
+}
+
+.layout-btn, .filter-btn {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-secondary);
@@ -373,8 +379,51 @@ main {
   transition: var(--transition);
   letter-spacing: 0.03em;
 }
-.layout-btn:hover { border-color: #2a3a4e; color: var(--text-primary); }
-.layout-btn.active { border-color: var(--gold); color: var(--gold); }
+.layout-btn:hover, .filter-btn:hover { border-color: #2a3a4e; color: var(--text-primary); }
+.layout-btn.active, .filter-btn.active { border-color: var(--gold); color: var(--gold); }
+
+/* ─── Role Section Headers ───────────────────────────────────────────────────── */
+.role-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 4px 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  grid-column: 1 / -1;
+}
+
+.role-section-icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.8;
+  filter: invert(1) brightness(0.7);
+}
+
+.role-section-grid {
+  display: contents;
+}
+
+/* ─── Role Icons on Cards ────────────────────────────────────────────────────── */
+.card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-role-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+  filter: invert(1) brightness(0.8);
+  flex-shrink: 0;
+}
 
 /* ─── Drag-and-Drop ──────────────────────────────────────────────────────────── */
 .player-card.draggable-card { cursor: grab; }

@@ -32,6 +32,17 @@ const TIER_COLORS = {
 
 const MASTERS_TIERS = new Set(['MASTER', 'GRANDMASTER', 'CHALLENGER']);
 
+const ROLE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
+const ROLE_DISPLAY = { TOP: 'Top', JUNGLE: 'Jungle', MIDDLE: 'Mid', BOTTOM: 'ADC', UTILITY: 'Support' };
+const ROLE_SLUG = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'bottom', UTILITY: 'support' };
+
+function roleIconUrl(role) {
+  const slug = ROLE_SLUG[role];
+  return slug
+    ? `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/svg/position-${slug}.svg`
+    : null;
+}
+
 // Number line layout
 const NL_TRACK_WIDTH   = 3200;
 const NL_LP_MAX        = 2900;
@@ -55,6 +66,7 @@ const ARRANGE_KEY = 'rtm_arrange_order';
 let enrichedPlayers = [];
 let activeTab = 'cards';
 let layoutMode = 'leaderboard'; // 'leaderboard' | 'arrange'
+let filterMode = 'all'; // 'all' | 'role'
 let ddVersion = null; // cached Data Dragon version
 
 function getSavedOrder() {
@@ -202,12 +214,12 @@ function getCachedChampions(gameName, tagLine) {
   const entry = c[playerKey(gameName, tagLine)];
   if (!entry) return null;
   if (Date.now() - entry.ts > CHAMPION_TTL) return null;
-  return { champions: entry.champions, streak: entry.streak || null };
+  return { champions: entry.champions, streak: entry.streak || null, roles: entry.roles || [] };
 }
 
-function cacheChampions(gameName, tagLine, champions, streak) {
+function cacheChampions(gameName, tagLine, champions, streak, roles) {
   const c = loadChampionCache();
-  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions, streak: streak || null };
+  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions, streak: streak || null, roles: roles || [] };
   saveChampionCache(c);
 }
 
@@ -232,11 +244,11 @@ function championIconUrl(championName, version) {
 async function fetchChampions(puuid) {
   try {
     const res = await fetch(`/api/champions?puuid=${encodeURIComponent(puuid)}`);
-    if (!res.ok) return { champions: [], streak: null };
+    if (!res.ok) return { champions: [], streak: null, roles: [] };
     const data = await res.json();
-    return { champions: data.champions || [], streak: data.streak || null };
+    return { champions: data.champions || [], streak: data.streak || null, roles: data.roles || [] };
   } catch {
-    return { champions: [], streak: null };
+    return { champions: [], streak: null, roles: [] };
   }
 }
 
@@ -352,12 +364,13 @@ async function refreshAll() {
     let cached = getCachedChampions(p.gameName, p.tagLine);
     if (cached === null && p.puuid) {
       cached = await fetchChampions(p.puuid);
-      cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak);
+      cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak, cached.roles);
     }
     const state = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
     if (state) {
       state.champions = cached?.champions || [];
       state.streak = cached?.streak || null;
+      state.roles = cached?.roles || [];
     }
   }
 
@@ -412,7 +425,29 @@ function renderLeaderboard() {
   }
 
   const draggable = layoutMode === 'arrange';
-  board.innerHTML = sorted.map((player, i) => renderCard(player, i + 1, draggable)).join('');
+
+  if (filterMode === 'role') {
+    // Group by primary role, render section headers
+    let html = '';
+    for (const role of ROLE_ORDER) {
+      const inRole = sorted.filter(p => p.roles && p.roles[0] === role);
+      if (inRole.length === 0) continue;
+      html += `<div class="role-section-header"><img class="role-section-icon" src="${roleIconUrl(role)}" alt="${ROLE_DISPLAY[role]}"><span>${ROLE_DISPLAY[role]}</span></div>`;
+      html += `<div class="role-section-grid">`;
+      html += inRole.map((player, i) => renderCard(player, i + 1, draggable)).join('');
+      html += `</div>`;
+    }
+    // Players with no role data go at the end
+    const noRole = sorted.filter(p => !p.roles || p.roles.length === 0);
+    if (noRole.length > 0) {
+      html += `<div class="role-section-header"><span>Unassigned</span></div><div class="role-section-grid">`;
+      html += noRole.map((player, i) => renderCard(player, i + 1, draggable)).join('');
+      html += `</div>`;
+    }
+    board.innerHTML = html;
+  } else {
+    board.innerHTML = sorted.map((player, i) => renderCard(player, i + 1, draggable)).join('');
+  }
 
   if (draggable) {
     let dragSrc = null;
@@ -495,7 +530,12 @@ function renderCard(player, position, draggable = false) {
     <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
       <div class="card-header">
         <div class="card-identity">
-          <div class="card-game-name">${escHtml(player.gameName)}</div>
+          <div class="card-name-row">
+            <div class="card-game-name">${escHtml(player.gameName)}</div>
+            ${player.roles && player.roles.length > 0
+              ? player.roles.map(r => `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')
+              : ''}
+          </div>
           <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
         </div>
         <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
@@ -776,10 +816,11 @@ async function addPlayer(riotId) {
   let cached = getCachedChampions(data.gameName, data.tagLine);
   if (cached === null && data.puuid) {
     cached = await fetchChampions(data.puuid);
-    cacheChampions(data.gameName, data.tagLine, cached.champions, cached.streak);
+    cacheChampions(data.gameName, data.tagLine, cached.champions, cached.streak, cached.roles);
   }
   data.champions = cached?.champions || [];
   data.streak = cached?.streak || null;
+  data.roles = cached?.roles || [];
 
   upsertPlayer(data);
   recordLPSnapshot(data.gameName, data.tagLine, data.totalLP);
@@ -890,6 +931,16 @@ function setupEventListeners() {
       layoutMode = btn.dataset.layout;
       document.querySelectorAll('.layout-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.layout === layoutMode));
+      renderLeaderboard();
+    });
+  });
+
+  // Filter mode toggle
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterMode = btn.dataset.filter;
+      document.querySelectorAll('.filter-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.filter === filterMode));
       renderLeaderboard();
     });
   });

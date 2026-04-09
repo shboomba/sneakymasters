@@ -32,8 +32,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ champions: [] });
     }
 
-    // Fetch each match and count champion plays + detect streak
+    // Fetch each match and count champion plays, roles, and detect streak
     const champCounts = {};
+    const roleCounts = {};
     let streakType = null, streakCount = 0, streakDone = false;
 
     for (const matchId of matchIds) {
@@ -50,6 +51,11 @@ export default async function handler(req, res) {
 
         if (participant.championName) {
           champCounts[participant.championName] = (champCounts[participant.championName] || 0) + 1;
+        }
+
+        // Track role (teamPosition: TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY)
+        if (participant.teamPosition) {
+          roleCounts[participant.teamPosition] = (roleCounts[participant.teamPosition] || 0) + 1;
         }
 
         // Streak: matchIds are newest-first, so first processed = most recent game
@@ -74,9 +80,19 @@ export default async function handler(req, res) {
       .slice(0, 3)
       .map(([name]) => name);
 
+    // Determine primary role(s): include 2nd role if within 20% of primary
+    const sortedRoles = Object.entries(roleCounts).sort((a, b) => b[1] - a[1]);
+    let roles = [];
+    if (sortedRoles.length > 0) {
+      roles.push(sortedRoles[0][0]);
+      if (sortedRoles.length > 1 && sortedRoles[1][1] >= sortedRoles[0][1] * 0.8) {
+        roles.push(sortedRoles[1][0]);
+      }
+    }
+
     const streak = streakType ? { type: streakType, count: streakCount } : null;
 
-    return res.status(200).json({ champions: top3, streak });
+    return res.status(200).json({ champions: top3, streak, roles });
 
   } catch {
     return res.status(200).json({ champions: [] });
