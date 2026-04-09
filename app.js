@@ -34,7 +34,7 @@ const MASTERS_TIERS = new Set(['MASTER', 'GRANDMASTER', 'CHALLENGER']);
 
 const ROLE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 const ROLE_DISPLAY = { TOP: 'Top', JUNGLE: 'Jungle', MIDDLE: 'Mid', BOTTOM: 'ADC', UTILITY: 'Support' };
-const ROLE_SLUG = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', BOTTOM: 'bottom', UTILITY: 'utility' };
+const ROLE_SLUG = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'middle', BOTTOM: 'bottom', UTILITY: 'utility' };
 
 function roleIconUrl(role) {
   const slug = ROLE_SLUG[role];
@@ -528,9 +528,11 @@ function renderCard(player, position, draggable = false) {
     ? `<div class="masters-banner">&#9733; Reached ${TIER_DISPLAY[tier]}!</div>`
     : '';
 
-  const streakBanner = player.streak && player.streak.count >= 3
+  const hasStreak = player.streak && player.streak.count >= 3;
+  const streakBanner = hasStreak
     ? `<div class="streak-banner streak-banner-${player.streak.type}">${player.streak.type === 'win' ? '🔥' : '💀'} ${player.streak.count} ${player.streak.type === 'win' ? 'Win' : 'Loss'} Streak</div>`
     : '';
+  const streakClass = hasStreak ? ` card-streak-${player.streak.type}` : '';
 
   const errorMsg = player.error
     ? `<div class="card-error-msg">&#9888; ${player.error}</div>`
@@ -542,7 +544,7 @@ function renderCard(player, position, draggable = false) {
   const starred = isStarred(player.gameName, player.tagLine);
 
   return `
-    <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
+    <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}${streakClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
       <div class="card-header">
         <div class="card-identity">
           <div class="card-name-row">
