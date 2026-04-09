@@ -526,6 +526,10 @@ main {
 .btn-opgg:hover { border-color: var(--gold-dark); color: var(--gold); }
 
 /* ─── Number Line Tab ────────────────────────────────────────────────────────── */
+#tab-numberline {
+  padding: 32px 0;
+}
+
 #numberline-container {
   position: relative;
   display: flex;

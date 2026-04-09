@@ -651,9 +651,7 @@ function renderNumberLineTab() {
   // Players
   items.forEach(({ p, x, lane }) => {
     const color = getTierColor(p.tier);
-    const badgeStr = MASTERS_TIERS.has(p.tier)
-      ? `${TIER_DISPLAY[p.tier]} ${p.leaguePoints} LP`
-      : `${TIER_DISPLAY[p.tier]} ${p.rank}`;
+    const badgeStr = `${p.totalLP} LP`;
 
     // Label top
     let labelTop;
@@ -846,6 +844,8 @@ function setupEventListeners() {
         b.classList.toggle('active', b.dataset.tab === tab));
       document.querySelectorAll('.tab-panel').forEach(p =>
         p.classList.toggle('active', p.id === `tab-${tab}`));
+
+      document.querySelector('main').style.display = tab === 'numberline' ? 'none' : '';
 
       if (tab === 'rankings') renderRankingsTab();
       if (tab === 'numberline') renderNumberLineTab();
