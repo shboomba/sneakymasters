@@ -2,6 +2,8 @@
 const STARRED_KEY     = 'rtm_starred';
 const POS_HISTORY_KEY = 'rtm_pos_history';
 const CHAMPIONS_KEY   = 'rtm_champions';
+const GRAPH_WIN_KEY   = 'rtm_graph_win';
+const NOTES_KEY       = 'rtm_notes';
 
 const LP_HISTORY_MAX     = 200;
 const CHAMPION_TTL       = 60 * 60 * 1000; // 1 hour
@@ -130,6 +132,17 @@ function isStarred(gameName, tagLine) {
   return loadStarred().has(playerKey(gameName, tagLine));
 }
 
+/* ─── LocalStorage: Player Notes ─────────────────────────────────────────────── */
+function loadNotes() {
+  try { return JSON.parse(localStorage.getItem(NOTES_KEY)) || {}; } catch { return {}; }
+}
+function getNote(pKey) { return loadNotes()[pKey] || ''; }
+function saveNote(pKey, text) {
+  const notes = loadNotes();
+  if (text) notes[pKey] = text; else delete notes[pKey];
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+
 /* ─── LP History (shared via KV) ─────────────────────────────────────────────── */
 let lpHistoryCache = {};
 
@@ -193,10 +206,20 @@ function recordPositionSnapshots(sortedPlayers) {
 function getWeeklyPositionChange(gameName, tagLine, currentPosition) {
   const h = loadPosHistory();
   const entries = h[playerKey(gameName, tagLine)] || [];
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weekEntries = entries.filter(e => e.ts >= sevenDaysAgo);
-  if (weekEntries.length === 0) return null;
-  return weekEntries[0].position - currentPosition; // positive = moved up
+
+  // Monday midnight of the current week
+  const now = new Date();
+  const daysSinceMonday = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - daysSinceMonday);
+  const weekStartTs = weekStart.getTime();
+
+  // Baseline = most recent snapshot recorded before this week started
+  const preWeekEntries = entries.filter(e => e.ts < weekStartTs);
+  if (preWeekEntries.length === 0) return null;
+  const baseline = preWeekEntries[preWeekEntries.length - 1];
+  return baseline.position - currentPosition; // positive = moved up
 }
 
 /* ─── LocalStorage: Champion Cache ──────────────────────────────────────────── */
@@ -221,7 +244,14 @@ function getCachedChampions(gameName, tagLine, currentLP) {
 
 function cacheChampions(gameName, tagLine, champions, streak, roles, lp) {
   const c = loadChampionCache();
-  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions, streak: streak || null, roles: roles || [], lp: lp ?? null };
+  const prev = c[playerKey(gameName, tagLine)];
+  c[playerKey(gameName, tagLine)] = {
+    ts: Date.now(),
+    lp: lp ?? null,
+    champions: champions?.length ? champions : (prev?.champions || []),
+    roles: roles?.length ? roles : (prev?.roles || []),
+    streak: streak || null,
+  };
   saveChampionCache(c);
 }
 
@@ -263,7 +293,8 @@ async function fetchChampions(puuid) {
 async function fetchPlayerData(gameName, tagLine) {
   const url = `/api/summoner?gameName=${encodeURIComponent(gameName)}&tagLine=${encodeURIComponent(tagLine)}`;
   const res = await fetch(url);
-  const data = await res.json();
+  let data;
+  try { data = await res.json(); } catch { throw new Error(`Server error ${res.status}`); }
 
   if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
 
@@ -348,18 +379,16 @@ async function refreshAll() {
   }
   renderLeaderboard();
 
-  // Fetch rank data sequentially with a small gap to avoid rate limits
-  for (let i = 0; i < players.length; i++) {
-    const p = players[i];
-    if (i > 0) await new Promise(r => setTimeout(r, 1000));
+  // Fetch rank data in parallel (Riot personal key allows 20 req/s — safe for ≤15 players)
+  await Promise.all(players.map(async p => {
     try {
       const data = await fetchPlayerData(p.gameName, p.tagLine);
       upsertPlayer(data);
     } catch (err) {
       upsertPlayer({ gameName: p.gameName, tagLine: p.tagLine, loading: false, error: err.message, totalLP: 0, champions: [] });
     }
-    renderLeaderboard();
-  }
+  }));
+  renderLeaderboard();
 
   // Sort for snapshots
   const sorted = [...enrichedPlayers]
@@ -382,9 +411,9 @@ async function refreshAll() {
     }
     const state = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
     if (state) {
-      state.champions = cached?.champions || [];
-      state.streak = cached?.streak || null;
-      state.roles = cached?.roles || [];
+      if (cached?.champions?.length) state.champions = cached.champions;
+      if (cached?.roles?.length) state.roles = cached.roles;
+      if (cached?.streak != null) state.streak = cached.streak;
     }
   }
 
@@ -542,35 +571,45 @@ function renderCard(player, position, draggable = false) {
   const graphKey = pKey.replace(/[^a-z0-9]/g, '-');
   const starred = isStarred(player.gameName, player.tagLine);
 
+  const note = getNote(pKey);
+
   return `
     <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}${streakClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
-      <div class="card-header">
-        <div class="card-identity">
-          <div class="card-name-row">
-            <div class="card-game-name">${escHtml(player.gameName)}</div>
+      <div class="card-front">
+        <div class="card-header">
+          <div class="card-identity">
+            <div class="card-name-row">
+              <div class="card-game-name">${escHtml(player.gameName)}</div>
+            </div>
+            <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
           </div>
-          <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
+          ${player.roles && player.roles.length > 0
+            ? `<div class="card-roles">${player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')}</div>`
+            : ''}
+          <button class="btn-flip" title="Player notes">&#9998;</button>
+          <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
+          <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
         </div>
-        ${player.roles && player.roles.length > 0
-          ? `<div class="card-roles">${player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')}</div>`
-          : ''}
-        <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
-        <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
-      </div>
-      <div class="card-rank-info">
-        <span class="tier-badge">${tierDisplay}</span>
-        <span class="lp-display">${lpDisplay}</span>
-      </div>
-      ${champHtml}
-      <div class="card-record">${recordHtml}</div>
-      ${mastersBanner}
-      ${streakBanner}
-      ${errorMsg}
-      <div class="card-footer">
-        <button class="btn-graph-toggle" data-graph-key="${graphKey}">LP History</button>
-        <div class="graph-panel" id="graph-${graphKey}">
-          ${graphHtml}
+        <div class="card-rank-info">
+          <span class="tier-badge">${tierDisplay}</span>
+          <span class="lp-display">${lpDisplay}</span>
         </div>
+        ${champHtml}
+        <div class="card-record">${recordHtml}</div>
+        ${mastersBanner}
+        ${streakBanner}
+        ${errorMsg}
+        <div class="card-footer">
+          <button class="btn-graph-toggle" data-graph-key="${graphKey}">LP History</button>
+          <div class="graph-panel" id="graph-${graphKey}">
+            ${graphHtml}
+          </div>
+        </div>
+      </div>
+      <div class="card-back">
+        <span class="card-back-name">${escHtml(player.gameName)}</span>
+        <label class="card-note-label">Notes</label>
+        <textarea class="card-note-input" data-player-key="${pKey}" placeholder="Add notes about this player..." rows="5">${escHtml(note)}</textarea>
       </div>
     </div>`;
 }
@@ -584,16 +623,35 @@ function renderChampions(player) {
   return `<div class="card-champions">${icons}</div>`;
 }
 
+/* ─── Graph Window Preference ────────────────────────────────────────────────── */
+function loadGraphWindows() {
+  try { return JSON.parse(localStorage.getItem(GRAPH_WIN_KEY)) || {}; } catch { return {}; }
+}
+function getGraphWindow(gameName, tagLine) {
+  return loadGraphWindows()[playerKey(gameName, tagLine)] || '7d';
+}
+// Exposed globally so inline onclick handlers can call it
+window.setGraphWin = function(pKey, win) {
+  const wins = loadGraphWindows();
+  wins[pKey] = win;
+  localStorage.setItem(GRAPH_WIN_KEY, JSON.stringify(wins));
+  const panel = document.getElementById(`graph-${pKey.replace(/[^a-z0-9]/g, '-')}`);
+  if (!panel) return;
+  const p = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === pKey);
+  if (p) panel.innerHTML = renderGraphPanel(p);
+};
+
 function renderGraphPanel(player) {
-  const history = getPlayerLPHistory(player.gameName, player.tagLine);
+  const allHistory = getPlayerLPHistory(player.gameName, player.tagLine);
+  const win = getGraphWindow(player.gameName, player.tagLine);
+  const pKey = playerKey(player.gameName, player.tagLine);
 
   function lpChangeSince(ms) {
     const cutoff = Date.now() - ms;
-    const inRange = history.filter(e => e.ts >= cutoff);
-    if (inRange.length === 0 || history.length === 0) return null;
-    return history[history.length - 1].lp - inRange[0].lp;
+    const inRange = allHistory.filter(e => e.ts >= cutoff);
+    if (inRange.length === 0 || allHistory.length === 0) return null;
+    return allHistory[allHistory.length - 1].lp - inRange[0].lp;
   }
-
   function formatChange(val) {
     if (val === null) return `<span class="neutral">—</span>`;
     if (val > 0)  return `<span class="positive">+${val} LP</span>`;
@@ -601,43 +659,76 @@ function renderGraphPanel(player) {
     return `<span class="neutral">±0 LP</span>`;
   }
 
+  const change24 = lpChangeSince(24 * 60 * 60 * 1000);
   const change7  = lpChangeSince(7  * 24 * 60 * 60 * 1000);
-  const change30 = lpChangeSince(30 * 24 * 60 * 60 * 1000);
 
   const statsHtml = `
     <div class="graph-stats">
-      <div class="graph-stat">Last 7 days<span>${formatChange(change7)}</span></div>
-      <div class="graph-stat">Last 30 days<span>${formatChange(change30)}</span></div>
+      <div class="graph-stat">Last 24h<span>${formatChange(change24)}</span></div>
+      <div class="graph-stat">Last 7d<span>${formatChange(change7)}</span></div>
     </div>`;
 
-  const chartHtml = history.length >= 2
-    ? buildSVGChart(history)
-    : `<p class="graph-no-data">Refresh a few more times to build history.</p>`;
+  const winBtns = ['24h', '7d', 'all'].map(w =>
+    `<button class="graph-win-btn${win === w ? ' active' : ''}" onclick="setGraphWin('${pKey}','${w}')">${w}</button>`
+  ).join('');
+  const toggleHtml = `<div class="graph-win-toggle">${winBtns}</div>`;
 
-  return statsHtml + chartHtml;
+  const chartHtml = buildSVGChart(allHistory, win)
+    || `<p class="graph-no-data">Not enough data for this window.</p>`;
+
+  return statsHtml + toggleHtml + chartHtml;
 }
 
-function buildSVGChart(history) {
+function buildSVGChart(rawHistory, win) {
   const W = 300, H = 80;
   const PAD = { top: 8, right: 8, bottom: 8, left: 8 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
+  // 1. Filter to selected time window
+  let history = rawHistory;
+  if (win === '24h') {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    history = rawHistory.filter(e => e.ts >= cutoff);
+  } else if (win === '7d') {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    history = rawHistory.filter(e => e.ts >= cutoff);
+  }
+  if (history.length < 2) return null;
+
+  // 2. Downsample to max 60 points (keep first + last)
+  if (history.length > 60) {
+    const step = Math.ceil(history.length / 58);
+    const sampled = history.filter((_, i) => i % step === 0);
+    if (sampled[sampled.length - 1] !== history[history.length - 1]) {
+      sampled.push(history[history.length - 1]);
+    }
+    history = sampled;
+  }
+
+  // 3. Time-based X with gap capping (max 3h gap rendered as ≤20% of width)
+  const MAX_GAP_MS = 3 * 60 * 60 * 1000;
+  const virtualTs = [history[0].ts];
+  for (let i = 1; i < history.length; i++) {
+    const gap = Math.min(history[i].ts - history[i - 1].ts, MAX_GAP_MS);
+    virtualTs.push(virtualTs[i - 1] + gap);
+  }
+  const tsRange = (virtualTs[virtualTs.length - 1] - virtualTs[0]) || 1;
+
   const lps = history.map(e => e.lp);
   const minLP = Math.min(...lps);
   const maxLP = Math.max(...lps);
-  const range = maxLP - minLP || 1;
+  const lpRange = maxLP - minLP || 1;
 
   const pts = history.map((e, i) => {
-    const x = PAD.left + (i / (history.length - 1)) * cW;
-    const y = PAD.top + (1 - (e.lp - minLP) / range) * cH;
+    const x = PAD.left + ((virtualTs[i] - virtualTs[0]) / tsRange) * cW;
+    const y = PAD.top + (1 - (e.lp - minLP) / lpRange) * cH;
     return [x.toFixed(1), y.toFixed(1)];
   });
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ');
   const bottomY  = (PAD.top + cH).toFixed(1);
   const areaPath = `${linePath} L${pts[pts.length - 1][0]} ${bottomY} L${pts[0][0]} ${bottomY} Z`;
-
   const [lastX, lastY] = pts[pts.length - 1];
 
   return `
@@ -934,7 +1025,27 @@ function setupEventListeners() {
     if (graphBtn) {
       const panel = document.getElementById(`graph-${graphBtn.dataset.graphKey}`);
       if (panel) panel.classList.toggle('open');
+      return;
     }
+
+    const flipBtn = e.target.closest('.btn-flip');
+    if (flipBtn) {
+      flipBtn.closest('.player-card').classList.add('is-flipped');
+      return;
+    }
+
+    // Clicking anywhere on the back (except the textarea) flips back to front
+    const cardBack = e.target.closest('.card-back');
+    if (cardBack && !e.target.closest('.card-note-input')) {
+      cardBack.closest('.player-card').classList.remove('is-flipped');
+      return;
+    }
+  });
+
+  // Auto-save card notes on input
+  document.getElementById('leaderboard').addEventListener('input', e => {
+    const textarea = e.target.closest('.card-note-input');
+    if (textarea) saveNote(textarea.dataset.playerKey, textarea.value);
   });
 
   // Filter dropdown
@@ -1040,5 +1151,4 @@ window.addEventListener('resize', () => {
   if (activeTab === 'numberline') renderNumberLineTab();
 });
 
-// Auto-refresh every 5 minutes so LP and streaks stay current without manual refresh
-setInterval(refreshAll, 5 * 60 * 1000);
+// Auto-refresh removed — use Refresh All button or Discord monitor for background updates

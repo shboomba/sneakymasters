@@ -21,8 +21,11 @@ async function kvGet() {
   const r = await fetch(`${KV_URL}/get/${STATE_KEY}`, {
     headers: { Authorization: `Bearer ${KV_TOKEN}` }
   });
-  const d = await r.json();
-  return d.result ? JSON.parse(d.result) : {};
+  if (!r.ok) return {};
+  let d;
+  try { d = await r.json(); } catch { return {}; }
+  if (!d.result) return {};
+  try { return JSON.parse(d.result); } catch { return {}; }
 }
 
 async function kvSet(state) {
@@ -61,14 +64,15 @@ async function main() {
   const players = await fetchPlayers();
   if (!players.length) return;
 
-  // Fetch current rank for all players
-  const current = [];
-  for (const { gameName, tagLine } of players) {
-    const rank = await fetchRank(gameName, tagLine);
-    if (!rank) continue;
-    const lp = rank.totalLP || computeLP(rank.tier, rank.rank, rank.leaguePoints);
-    current.push({ gameName, tagLine, lp, tier: rank.tier, rank: rank.rank });
-  }
+  // Fetch current rank for all players in parallel
+  const results = await Promise.all(players.map(({ gameName, tagLine }) =>
+    fetchRank(gameName, tagLine).then(rank => rank ? {
+      gameName, tagLine,
+      lp: rank.totalLP || computeLP(rank.tier, rank.rank, rank.leaguePoints),
+      tier: rank.tier, rank: rank.rank
+    } : null)
+  ));
+  const current = results.filter(Boolean);
   current.sort((a, b) => b.lp - a.lp);
 
   // Load last known state

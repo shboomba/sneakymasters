@@ -7,8 +7,11 @@ async function kvGet() {
   const res = await fetch(`${KV_URL}/get/${KEY}`, {
     headers: { Authorization: `Bearer ${KV_TOKEN}` }
   });
-  const data = await res.json();
-  return data.result ? JSON.parse(data.result) : {};
+  if (!res.ok) return {};
+  let data;
+  try { data = await res.json(); } catch { return {}; }
+  if (!data.result) return {};
+  try { return JSON.parse(data.result); } catch { return {}; }
 }
 
 async function kvSet(history) {

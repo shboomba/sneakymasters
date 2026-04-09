@@ -1,8 +1,7 @@
 name: Daily Leaderboard Update
 
 on:
-  schedule:
-    - cron: '59 7 * * *'  # 11:59 PM PST (UTC-8)
+  # Auto-schedule disabled — trigger manually from GitHub Actions when needed
   workflow_dispatch:
 
 jobs:
