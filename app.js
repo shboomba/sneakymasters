@@ -1188,13 +1188,13 @@ async function renderGambaTab() {
     : points.map((p, i) => `
         <div class="gamba-points-row${i < 3 ? ` gamba-top-${i + 1}` : ''}">
           <span class="gamba-rank">${i < 3 ? medals[i] : `#${i + 1}`}</span>
-          <span class="gamba-user-id">${escHtml(p.userId)}</span>
+          <span class="gamba-user-id">${escHtml(p.name)}</span>
           <span class="gamba-pts">${p.pts.toLocaleString()} pts</span>
         </div>`).join('');
 
   // Bet history
   const betsHtml = bets.length === 0
-    ? `<p class="gamba-empty">No bets yet. Use /bet create in Discord!</p>`
+    ? `<p class="gamba-empty">No bets yet.</p>`
     : bets.map(b => {
         const statusClass = b.status === 'open' ? 'gamba-status-open' : 'gamba-status-resolved';
         const statusLabel = b.status === 'open' ? 'Open' : `Resolved — winner: ${escHtml(b.winner || '?')}`;

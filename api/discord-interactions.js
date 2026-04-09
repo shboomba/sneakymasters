@@ -10,6 +10,7 @@ const VERCEL_URL    = process.env.VERCEL_API_URL;
 
 const POINTS_KEY    = 'rtm_gamba_points';
 const BETS_KEY      = 'rtm_gamba_bets';
+const USERNAMES_KEY = 'rtm_gamba_usernames';
 const STARTING_PTS  = 1000;
 
 /* ─── Signature Verification ─────────────────────────────────────────────────── */
@@ -58,6 +59,13 @@ async function getPoints() { return (await kvGet(POINTS_KEY)) || {}; }
 async function getUserPoints(userId) {
   const pts = await getPoints();
   return pts[userId] ?? STARTING_PTS;
+}
+
+async function trackUsername(userId, username) {
+  const names = (await kvGet(USERNAMES_KEY)) || {};
+  if (names[userId] === username) return; // no-op if unchanged
+  names[userId] = username;
+  await kvSet(USERNAMES_KEY, names);
 }
 
 /* ─── Bets ───────────────────────────────────────────────────────────────────── */
@@ -116,7 +124,7 @@ async function cmdLeaderboard() {
 }
 
 async function cmdPoints(userId, username) {
-  const pts = await getUserPoints(userId);
+  const [pts] = await Promise.all([getUserPoints(userId), trackUsername(userId, username)]);
   return reply([{
     description: `💰 **${username}** has **${pts.toLocaleString()} Gamba points**.`,
     color: 0xc89b3c
@@ -124,7 +132,7 @@ async function cmdPoints(userId, username) {
 }
 
 async function cmdBetCreate(userId, username, title, description) {
-  const bets = await getBets();
+  const [bets] = await Promise.all([getBets(), trackUsername(userId, username)]);
   const id = genId();
   bets[id] = {
     id, title,
@@ -155,7 +163,7 @@ async function cmdBetJoin(userId, username, betId, choice, amount) {
   if (!betId || !choice) return ephemeral('Provide both `id` and `choice`.');
   if (amount <= 0) return ephemeral('Amount must be positive.');
 
-  const [bets, allPts] = await Promise.all([getBets(), getPoints()]);
+  const [bets, allPts] = await Promise.all([getBets(), getPoints(), trackUsername(userId, username)]);
   const bet = bets[betId];
   if (!bet) return ephemeral(`Bet \`${betId}\` not found.`);
   if (bet.status !== 'open') return ephemeral(`Bet \`${betId}\` is no longer open.`);
