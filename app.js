@@ -691,11 +691,6 @@ const NL_LABEL_V_GAP = 10;  // px gap between label edge and baseline
 const NL_MIN_X_GAP   = 130; // min horizontal px between labels in the same lane
 const NL_LANE_ORDER  = [1, 2, 3, 4, 5, 6, 7, 8]; // above-baseline only
 
-function lpToX(lp) {
-  const usable = NL_TRACK_WIDTH - NL_PADDING_LEFT - NL_PADDING_RIGHT;
-  return NL_PADDING_LEFT + (Math.min(lp, NL_LP_MAX) / NL_LP_MAX) * usable;
-}
-
 // Greedy lane assignment — only above-baseline lanes
 function nlAssignLanes(items) {
   const laneLastX = {};
@@ -714,11 +709,14 @@ function nlAssignLanes(items) {
   }
 }
 
-// Render one horizontal track for a group of players
-function renderNLTrack(players, title) {
+// Render one horizontal track with its own LP coordinate range
+function renderNLTrack(players, title, lpMin, lpMax) {
   if (players.length === 0) return '';
 
-  const items = players.map(p => ({ p, x: lpToX(p.totalLP) }));
+  const usable = NL_TRACK_WIDTH - NL_PADDING_LEFT - NL_PADDING_RIGHT;
+  const toX = lp => NL_PADDING_LEFT + ((Math.min(Math.max(lp, lpMin), lpMax) - lpMin) / (lpMax - lpMin)) * usable;
+
+  const items = players.map(p => ({ p, x: toX(p.totalLP) }));
   nlAssignLanes(items);
 
   const maxLane = items.reduce((m, i) => Math.max(m, i.lane), 1);
@@ -731,17 +729,18 @@ function renderNLTrack(players, title) {
   // Baseline
   html += `<div class="nl-baseline" style="top:${baselineY}px;"></div>`;
 
-  // Tier zones & labels
-  NL_ZONES.forEach(zone => {
-    const x1 = lpToX(zone.start);
-    const x2 = lpToX(zone.end);
+  // Only show zones that fall within this track's LP range
+  NL_ZONES.filter(z => z.end > lpMin && z.start < lpMax).forEach(zone => {
+    const x1 = toX(zone.start);
+    const x2 = toX(zone.end);
     const w  = x2 - x1;
     html += `<div class="nl-zone" style="left:${x1}px;width:${w}px;top:${baselineY - 10}px;background:${zone.color}18;border-bottom:2px solid ${zone.color}55;"></div>`;
     html += `<div class="nl-tier-label" style="left:${x1}px;top:${baselineY + 16}px;color:${zone.color};">${zone.tier}</div>`;
   });
 
-  // Iron— label on far left
-  html += `<div class="nl-tier-label nl-tier-label-left" style="left:${NL_PADDING_LEFT}px;top:${baselineY + 16}px;color:#6b6b6b;">Iron—</div>`;
+  // Left-end label
+  const leftLabel = lpMin === 0 ? 'Iron—' : 'Plat+';
+  html += `<div class="nl-tier-label nl-tier-label-left" style="left:${NL_PADDING_LEFT}px;top:${baselineY + 16}px;color:#888;">${leftLabel}</div>`;
 
   // Players
   items.forEach(({ p, x, lane }) => {
@@ -765,6 +764,8 @@ function renderNLTrack(players, title) {
   return html;
 }
 
+const NL_SPLIT_LP = 1600; // Platinum IV
+
 function renderNumberLineTab() {
   const track = document.getElementById('numberline-track');
   if (!track) return;
@@ -779,13 +780,12 @@ function renderNumberLineTab() {
     return;
   }
 
-  const PLATINUM_LP = 1600; // Platinum IV threshold
-  const topGroup    = players.filter(p => (p.totalLP || 0) >= PLATINUM_LP);
-  const bottomGroup = players.filter(p => (p.totalLP || 0) <  PLATINUM_LP);
+  const topGroup    = players.filter(p => (p.totalLP || 0) >= NL_SPLIT_LP);
+  const bottomGroup = players.filter(p => (p.totalLP || 0) <  NL_SPLIT_LP);
 
   track.style.height = 'auto';
-  const topHtml    = topGroup.length    ? renderNLTrack(topGroup,    'Platinum+') : '';
-  const bottomHtml = bottomGroup.length ? renderNLTrack(bottomGroup, 'Gold & Below') : '';
+  const topHtml    = topGroup.length    ? renderNLTrack(topGroup,    'Platinum+',    NL_SPLIT_LP, NL_LP_MAX) : '';
+  const bottomHtml = bottomGroup.length ? renderNLTrack(bottomGroup, 'Gold & Below', 0,           NL_SPLIT_LP) : '';
   const divider    = topHtml && bottomHtml ? `<div class="nl-track-divider"></div>` : '';
   track.innerHTML  = topHtml + divider + bottomHtml;
 
