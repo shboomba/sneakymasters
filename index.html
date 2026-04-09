@@ -32,13 +32,14 @@
   <main>
     <div id="tab-cards" class="tab-panel active">
       <div class="leaderboard-toolbar">
-        <div class="toolbar-group">
-          <button class="layout-btn active" data-layout="leaderboard">Leaderboard</button>
-          <button class="layout-btn" data-layout="arrange">Free Arrange</button>
-        </div>
-        <div class="toolbar-group">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="role">By Role</button>
+        <button id="btn-toggle-lp-history" class="btn btn-secondary">Toggle LP History</button>
+        <div class="filter-dropdown-wrap">
+          <label class="filter-label" for="filter-select">Filter by...</label>
+          <select id="filter-select" class="filter-select">
+            <option value="leaderboard">Leaderboard</option>
+            <option value="role">Role</option>
+            <option value="arrange">Custom</option>
+          </select>
         </div>
       </div>
       <div id="leaderboard"></div>

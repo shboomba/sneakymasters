@@ -65,8 +65,8 @@ const ARRANGE_KEY = 'rtm_arrange_order';
 /* ─── In-Memory State ────────────────────────────────────────────────────────── */
 let enrichedPlayers = [];
 let activeTab = 'cards';
-let layoutMode = 'leaderboard'; // 'leaderboard' | 'arrange'
-let filterMode = 'all'; // 'all' | 'role'
+let viewMode = 'leaderboard'; // 'leaderboard' | 'role' | 'arrange'
+let lpHistoryOpen = false;
 let ddVersion = null; // cached Data Dragon version
 
 function getSavedOrder() {
@@ -398,7 +398,7 @@ function renderLeaderboard() {
   const starred = loadStarred();
   let sorted;
 
-  if (layoutMode === 'arrange') {
+  if (viewMode === 'arrange') {
     const savedOrder = getSavedOrder();
     if (savedOrder.length > 0) {
       sorted = [...enrichedPlayers].sort((a, b) => {
@@ -424,9 +424,9 @@ function renderLeaderboard() {
     });
   }
 
-  const draggable = layoutMode === 'arrange';
+  const draggable = viewMode === 'arrange';
 
-  if (filterMode === 'role') {
+  if (viewMode === 'role') {
     // Group by primary role, render section headers
     let html = '';
     for (const role of ROLE_ORDER) {
@@ -533,7 +533,7 @@ function renderCard(player, position, draggable = false) {
           <div class="card-name-row">
             <div class="card-game-name">${escHtml(player.gameName)}</div>
             ${player.roles && player.roles.length > 0
-              ? player.roles.map(r => `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')
+              ? player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')
               : ''}
           </div>
           <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
@@ -653,9 +653,9 @@ function renderRankingsTab() {
     if (change === null || change === 0) {
       changeBadge = `<span class="pos-change same">&#8212;</span>`;
     } else if (change > 0) {
-      changeBadge = `<span class="pos-change up">^${change}</span>`;
+      changeBadge = `<span class="pos-change up">↑${change}</span>`;
     } else {
-      changeBadge = `<span class="pos-change down">v${Math.abs(change)}</span>`;
+      changeBadge = `<span class="pos-change down">↓${Math.abs(change)}</span>`;
     }
 
     const tier = p.tier || 'UNRANKED';
@@ -680,18 +680,17 @@ function renderRankingsTab() {
 }
 
 /* ─── Number Line Tab ────────────────────────────────────────────────────────── */
-const NL_LABEL_H     = 36;  // px height of name + tier label block
+const NL_LABEL_H     = 36;  // px height of name + LP label block
 const NL_LABEL_V_GAP = 10;  // px gap between label edge and baseline
 const NL_MIN_X_GAP   = 130; // min horizontal px between labels in the same lane
-const NL_LANE_ORDER  = [1, -1, 2, -2, 3, -3, 4, -4, 5, -5];
+const NL_LANE_ORDER  = [1, 2, 3, 4, 5, 6, 7, 8]; // above-baseline only
 
 function lpToX(lp) {
   const usable = NL_TRACK_WIDTH - NL_PADDING_LEFT - NL_PADDING_RIGHT;
   return NL_PADDING_LEFT + (Math.min(lp, NL_LP_MAX) / NL_LP_MAX) * usable;
 }
 
-// Greedy lane assignment — sorts items by x and assigns each to the
-// first lane (in NL_LANE_ORDER) whose last-placed label is far enough away.
+// Greedy lane assignment — only above-baseline lanes
 function nlAssignLanes(items) {
   const laneLastX = {};
   const sorted = [...items].sort((a, b) => a.x - b.x);
@@ -709,30 +708,19 @@ function nlAssignLanes(items) {
   }
 }
 
-function renderNumberLineTab() {
-  const track = document.getElementById('numberline-track');
-  if (!track) return;
-
-  const players = [...enrichedPlayers]
-    .filter(p => !p.loading && !p.error && p.tier && p.tier !== 'UNRANKED');
+// Render one horizontal track for a group of players
+function renderNLTrack(players, title) {
+  if (players.length === 0) return '';
 
   const items = players.map(p => ({ p, x: lpToX(p.totalLP) }));
   nlAssignLanes(items);
 
-  // Determine how many above/below lanes are used to set dynamic baseline & height
-  const lanesUsed = items.map(i => i.lane);
-  const maxAbove = lanesUsed.filter(l => l > 0).reduce((m, l) => Math.max(m, l), 1);
-  const maxBelow = lanesUsed.filter(l => l < 0).reduce((m, l) => Math.max(m, Math.abs(l)), 0);
+  const maxLane = items.reduce((m, i) => Math.max(m, i.lane), 1);
+  const baselineY = 20 + maxLane * (NL_LABEL_H + NL_LABEL_V_GAP);
+  const trackH = baselineY + 50;
 
-  // baselineY is pushed down enough that even the highest lane fits with 20px top padding
-  const baselineY = 20 + maxAbove * (NL_LABEL_H + NL_LABEL_V_GAP);
-  const trackH = Math.max(280, baselineY + (maxBelow > 0
-    ? maxBelow * (NL_LABEL_H + NL_LABEL_V_GAP) + NL_LABEL_V_GAP + 40
-    : 50));
-
-  track.style.height = `${trackH}px`;
-
-  let html = '';
+  let html = `<div class="nl-track-title">${title}</div>`;
+  html += `<div class="nl-track-section" style="height:${trackH}px;">`;
 
   // Baseline
   html += `<div class="nl-baseline" style="top:${baselineY}px;"></div>`;
@@ -746,31 +734,16 @@ function renderNumberLineTab() {
     html += `<div class="nl-tier-label" style="left:${x1}px;top:${baselineY + 16}px;color:${zone.color};">${zone.tier}</div>`;
   });
 
+  // Iron— label on far left
+  html += `<div class="nl-tier-label nl-tier-label-left" style="left:${NL_PADDING_LEFT}px;top:${baselineY + 16}px;color:#6b6b6b;">Iron—</div>`;
+
   // Players
   items.forEach(({ p, x, lane }) => {
     const color = getTierColor(p.tier);
     const badgeStr = `${p.totalLP} LP`;
-
-    // Label top
-    let labelTop;
-    if (lane > 0) {
-      // above baseline: lane 1 is closest
-      labelTop = baselineY - lane * (NL_LABEL_H + NL_LABEL_V_GAP);
-    } else {
-      // below baseline: lane -1 is closest
-      labelTop = baselineY + NL_LABEL_V_GAP + (Math.abs(lane) - 1) * (NL_LABEL_H + NL_LABEL_V_GAP);
-    }
-
-    // Connector from label edge to baseline dot
-    let connTop, connH;
-    if (lane > 0) {
-      connTop = labelTop + NL_LABEL_H;
-      connH   = baselineY - connTop;
-    } else {
-      connTop = baselineY;
-      connH   = labelTop - baselineY;
-    }
-
+    const labelTop = baselineY - lane * (NL_LABEL_H + NL_LABEL_V_GAP);
+    const connTop = labelTop + NL_LABEL_H;
+    const connH = baselineY - connTop;
     const dotTop = baselineY - 7;
 
     html += `
@@ -782,11 +755,33 @@ function renderNumberLineTab() {
       <div class="nl-dot" style="left:${x}px;top:${dotTop}px;background:${color};" title="${escHtml(p.gameName)} — ${badgeStr}"></div>`;
   });
 
-  if (items.length === 0) {
-    html += `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-muted);font-size:13px;">No ranked players to display</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function renderNumberLineTab() {
+  const track = document.getElementById('numberline-track');
+  if (!track) return;
+
+  const players = [...enrichedPlayers]
+    .filter(p => !p.loading && !p.error && p.tier && p.tier !== 'UNRANKED')
+    .sort((a, b) => (b.totalLP || 0) - (a.totalLP || 0));
+
+  if (players.length === 0) {
+    track.style.height = '200px';
+    track.innerHTML = `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-muted);font-size:13px;">No ranked players to display</div>`;
+    return;
   }
 
-  track.innerHTML = html;
+  const mid = Math.ceil(players.length / 2);
+  const topGroup    = players.slice(0, mid);   // higher LP
+  const bottomGroup = players.slice(mid);       // lower LP
+
+  track.style.height = 'auto';
+  track.innerHTML =
+    renderNLTrack(topGroup, 'Higher LP') +
+    `<div class="nl-track-divider"></div>` +
+    renderNLTrack(bottomGroup, 'Lower LP');
 
   const scrollEl = document.getElementById('numberline-scroll');
   scrollEl.scrollLeft = scrollEl.scrollWidth;
@@ -925,24 +920,16 @@ function setupEventListeners() {
     }
   });
 
-  // Layout mode toggle
-  document.querySelectorAll('.layout-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      layoutMode = btn.dataset.layout;
-      document.querySelectorAll('.layout-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.layout === layoutMode));
-      renderLeaderboard();
-    });
+  // Filter dropdown
+  document.getElementById('filter-select').addEventListener('change', e => {
+    viewMode = e.target.value;
+    renderLeaderboard();
   });
 
-  // Filter mode toggle
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      filterMode = btn.dataset.filter;
-      document.querySelectorAll('.filter-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.filter === filterMode));
-      renderLeaderboard();
-    });
+  // Toggle LP History
+  document.getElementById('btn-toggle-lp-history').addEventListener('click', () => {
+    lpHistoryOpen = !lpHistoryOpen;
+    document.querySelectorAll('.graph-panel').forEach(p => p.classList.toggle('open', lpHistoryOpen));
   });
 
   // Number line arrows
