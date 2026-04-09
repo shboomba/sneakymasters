@@ -682,9 +682,12 @@ function renderRankingsTab() {
 
     const opggName = `${encodeURIComponent(p.gameName)}-${encodeURIComponent(p.tagLine)}`;
 
+    const medals = ['🥇', '🥈', '🥉'];
+    const podiumClass = pos <= 3 ? ` ranking-top-${pos}` : '';
+
     return `
-      <div class="ranking-row" data-tier="${tier}">
-        <div class="ranking-pos">#${pos}</div>
+      <div class="ranking-row${podiumClass}" data-tier="${tier}">
+        <div class="ranking-pos">${pos <= 3 ? medals[pos - 1] : `#${pos}`}</div>
         <div class="ranking-name">
           <div class="game-name">${escHtml(p.gameName)}</div>
           <div class="tag-line">#${escHtml(p.tagLine)}</div>
