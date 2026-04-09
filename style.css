@@ -191,6 +191,19 @@ main {
   box-shadow: 0 0 20px var(--tier-glow, transparent), 0 0 0 1px var(--tier-color, transparent);
 }
 
+/* ─── Tier Emblem Watermark ──────────────────────────────────────────────────── */
+.card-tier-emblem {
+  position: absolute;
+  top: 10px;
+  right: 52px; /* clear of star + remove buttons */
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  opacity: 0.18;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* ─── Card Header ────────────────────────────────────────────────────────────── */
 .card-header {
   display: flex;

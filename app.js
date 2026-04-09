@@ -36,6 +36,12 @@ const ROLE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 const ROLE_DISPLAY = { TOP: 'Top', JUNGLE: 'Jungle', MIDDLE: 'Mid', BOTTOM: 'ADC', UTILITY: 'Support' };
 const ROLE_SLUG = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'middle', BOTTOM: 'bottom', UTILITY: 'utility' };
 
+function tierEmblemUrl(tier) {
+  if (!tier || tier === 'UNRANKED') return null;
+  const t = MASTERS_TIERS.has(tier) ? tier : tier;
+  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${t.toLowerCase()}.png`;
+}
+
 function roleIconUrl(role) {
   const slug = ROLE_SLUG[role];
   return slug
@@ -543,8 +549,11 @@ function renderCard(player, position, draggable = false) {
   const graphKey = pKey.replace(/[^a-z0-9]/g, '-');
   const starred = isStarred(player.gameName, player.tagLine);
 
+  const emblemUrl = tierEmblemUrl(tier);
+
   return `
     <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}${streakClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
+      ${emblemUrl ? `<img class="card-tier-emblem" src="${emblemUrl}" alt="${tier}" aria-hidden="true">` : ''}
       <div class="card-header">
         <div class="card-identity">
           <div class="card-name-row">
