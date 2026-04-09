@@ -802,8 +802,6 @@ function renderNumberLineTab() {
   const divider    = topHtml && bottomHtml ? `<div class="nl-track-divider"></div>` : '';
   track.innerHTML  = topHtml + divider + bottomHtml;
 
-  const scrollEl = document.getElementById('numberline-scroll');
-  scrollEl.scrollLeft = scrollEl.scrollWidth;
 }
 
 /* ─── Add / Remove Player ────────────────────────────────────────────────────── */
