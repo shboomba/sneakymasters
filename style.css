@@ -211,14 +211,15 @@ main {
   position: relative;
   transform-style: preserve-3d;
   transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: calc(var(--radius) - 1px);
-  overflow: hidden;
+  /* NOTE: no overflow:hidden here — it destroys preserve-3d context */
 }
 
 .player-card.is-flipped .card-inner { transform: rotateY(180deg); }
 
 .card-front {
   padding: 20px;
+  border-radius: calc(var(--radius) - 1px);
+  overflow: hidden;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
@@ -229,6 +230,7 @@ main {
   padding: 20px;
   background: var(--bg-card);
   border-radius: calc(var(--radius) - 1px);
+  overflow: hidden;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform: rotateY(180deg);

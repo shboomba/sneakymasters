@@ -1,3 +1,13 @@
+async function riotFetch(url, key) {
+  let r = await fetch(url, { headers: { 'X-Riot-Token': key } });
+  if (r.status === 429) {
+    const wait = parseInt(r.headers.get('Retry-After') || '3', 10);
+    await new Promise(res => setTimeout(res, wait * 1000));
+    r = await fetch(url, { headers: { 'X-Riot-Token': key } });
+  }
+  return r;
+}
+
 export default async function handler(req, res) {
   const { puuid } = req.query;
 
@@ -13,11 +23,9 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   try {
-    // Fetch last 20 ranked solo match IDs
-    const matchListUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=20`;
-    const matchListRes = await fetch(matchListUrl, {
-      headers: { 'X-Riot-Token': RIOT_KEY }
-    });
+    // Fetch last 5 ranked solo matches (reduced from 20 to stay under personal key rate limits)
+    const matchListUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=5`;
+    const matchListRes = await riotFetch(matchListUrl, RIOT_KEY);
 
     // 403 = match-v5 not approved on this key — degrade silently
     if (matchListRes.status === 403) {
@@ -32,16 +40,15 @@ export default async function handler(req, res) {
       return res.status(200).json({ champions: [] });
     }
 
-    // Fetch each match and count champion plays, roles, and detect streak
     const champCounts = {};
     const roleCounts = {};
     let streakType = null, streakCount = 0, streakDone = false;
 
     for (const matchId of matchIds) {
       try {
-        const matchRes = await fetch(
+        const matchRes = await riotFetch(
           `https://americas.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
-          { headers: { 'X-Riot-Token': RIOT_KEY } }
+          RIOT_KEY
         );
         if (!matchRes.ok) continue;
 
@@ -53,12 +60,10 @@ export default async function handler(req, res) {
           champCounts[participant.championName] = (champCounts[participant.championName] || 0) + 1;
         }
 
-        // Track role (teamPosition: TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY)
         if (participant.teamPosition) {
           roleCounts[participant.teamPosition] = (roleCounts[participant.teamPosition] || 0) + 1;
         }
 
-        // Streak: matchIds are newest-first, so first processed = most recent game
         if (!streakDone) {
           const won = participant.win;
           if (streakType === null) {
@@ -80,7 +85,6 @@ export default async function handler(req, res) {
       .slice(0, 3)
       .map(([name]) => name);
 
-    // Determine primary role(s): include 2nd role if within 20% of primary
     const sortedRoles = Object.entries(roleCounts).sort((a, b) => b[1] - a[1]);
     let roles = [];
     if (sortedRoles.length > 0) {
