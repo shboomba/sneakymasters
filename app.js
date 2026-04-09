@@ -209,20 +209,21 @@ function saveChampionCache(c) {
   localStorage.setItem(CHAMPIONS_KEY, JSON.stringify(c));
 }
 
-function getCachedChampions(gameName, tagLine) {
+function getCachedChampions(gameName, tagLine, currentLP) {
   const c = loadChampionCache();
   const entry = c[playerKey(gameName, tagLine)];
   if (!entry) return null;
   if (Date.now() - entry.ts > CHAMPION_TTL) return null;
-  // Invalidate entries without roles array (pre-roles cache) or with empty roles
-  // so we always re-fetch until we have actual role data
+  // Invalidate if LP changed since cache was written (game played since last fetch)
+  if (currentLP !== undefined && entry.lp !== currentLP) return null;
+  // Invalidate old entries without roles
   if (!Array.isArray(entry.roles) || entry.roles.length === 0) return null;
   return { champions: entry.champions, streak: entry.streak || null, roles: entry.roles };
 }
 
-function cacheChampions(gameName, tagLine, champions, streak, roles) {
+function cacheChampions(gameName, tagLine, champions, streak, roles, lp) {
   const c = loadChampionCache();
-  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions, streak: streak || null, roles: roles || [] };
+  c[playerKey(gameName, tagLine)] = { ts: Date.now(), champions, streak: streak || null, roles: roles || [], lp: lp ?? null };
   saveChampionCache(c);
 }
 
@@ -376,18 +377,16 @@ async function refreshAll() {
   // Fetch champions (cache-aware, sequential)
   await getDDragonVersion();
   for (const p of sorted) {
-    let cached = getCachedChampions(p.gameName, p.tagLine);
-    console.log(`[roles] ${p.gameName}: cache hit=${cached !== null}, puuid=${!!p.puuid}`);
+    let cached = getCachedChampions(p.gameName, p.tagLine, p.totalLP);
     if (cached === null && p.puuid) {
       cached = await fetchChampions(p.puuid);
-      cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak, cached.roles);
+      cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak, cached.roles, p.totalLP);
     }
     const state = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
     if (state) {
       state.champions = cached?.champions || [];
       state.streak = cached?.streak || null;
       state.roles = cached?.roles || [];
-      console.log(`[roles] ${p.gameName}: assigned roles=${JSON.stringify(state.roles)}`);
     }
   }
 
@@ -828,10 +827,10 @@ async function addPlayer(riotId) {
 
   // Fetch champions immediately on add
   await getDDragonVersion();
-  let cached = getCachedChampions(data.gameName, data.tagLine);
+  let cached = getCachedChampions(data.gameName, data.tagLine, data.totalLP);
   if (cached === null && data.puuid) {
     cached = await fetchChampions(data.puuid);
-    cacheChampions(data.gameName, data.tagLine, cached.champions, cached.streak, cached.roles);
+    cacheChampions(data.gameName, data.tagLine, cached.champions, cached.streak, cached.roles, data.totalLP);
   }
   data.champions = cached?.champions || [];
   data.streak = cached?.streak || null;
@@ -1042,3 +1041,6 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('resize', () => {
   if (activeTab === 'numberline') renderNumberLineTab();
 });
+
+// Auto-refresh every 5 minutes so LP and streaks stay current without manual refresh
+setInterval(refreshAll, 5 * 60 * 1000);
