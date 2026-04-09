@@ -692,9 +692,9 @@ main {
 .btn-opgg:hover { border-color: var(--gold-dark); color: var(--gold); }
 
 /* ─── Number Line Tab ────────────────────────────────────────────────────────── */
-#tab-numberline {
-  min-height: calc(100vh - 120px);
+#tab-numberline.active {
   display: flex;
+  min-height: calc(100vh - 120px);
   align-items: center;
 }
 
