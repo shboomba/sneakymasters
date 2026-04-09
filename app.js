@@ -214,7 +214,9 @@ function getCachedChampions(gameName, tagLine) {
   const entry = c[playerKey(gameName, tagLine)];
   if (!entry) return null;
   if (Date.now() - entry.ts > CHAMPION_TTL) return null;
-  if (!entry.roles) return null; // invalidate old cache entries that predate role tracking
+  // Invalidate entries without roles array (pre-roles cache) or with empty roles
+  // so we always re-fetch until we have actual role data
+  if (!Array.isArray(entry.roles) || entry.roles.length === 0) return null;
   return { champions: entry.champions, streak: entry.streak || null, roles: entry.roles };
 }
 
@@ -245,10 +247,15 @@ function championIconUrl(championName, version) {
 async function fetchChampions(puuid) {
   try {
     const res = await fetch(`/api/champions?puuid=${encodeURIComponent(puuid)}`);
-    if (!res.ok) return { champions: [], streak: null, roles: [] };
+    if (!res.ok) {
+      console.warn('[roles] /api/champions returned', res.status, 'for puuid', puuid);
+      return { champions: [], streak: null, roles: [] };
+    }
     const data = await res.json();
+    console.log('[roles] /api/champions response:', data);
     return { champions: data.champions || [], streak: data.streak || null, roles: data.roles || [] };
-  } catch {
+  } catch (err) {
+    console.warn('[roles] fetchChampions error:', err);
     return { champions: [], streak: null, roles: [] };
   }
 }
@@ -368,6 +375,7 @@ async function refreshAll() {
   await getDDragonVersion();
   for (const p of sorted) {
     let cached = getCachedChampions(p.gameName, p.tagLine);
+    console.log(`[roles] ${p.gameName}: cache hit=${cached !== null}, puuid=${!!p.puuid}`);
     if (cached === null && p.puuid) {
       cached = await fetchChampions(p.puuid);
       cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak, cached.roles);
@@ -377,6 +385,7 @@ async function refreshAll() {
       state.champions = cached?.champions || [];
       state.streak = cached?.streak || null;
       state.roles = cached?.roles || [];
+      console.log(`[roles] ${p.gameName}: assigned roles=${JSON.stringify(state.roles)}`);
     }
   }
 
