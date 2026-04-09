@@ -693,14 +693,16 @@ main {
 
 /* ─── Number Line Tab ────────────────────────────────────────────────────────── */
 #tab-numberline {
-  padding: 32px 0;
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
 }
 
 #numberline-container {
   position: relative;
   display: flex;
-  align-items: flex-start;
-  min-height: 280px;
+  align-items: center;
+  width: 100%;
   padding: 0 24px;
 }
 

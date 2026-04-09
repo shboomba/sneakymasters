@@ -734,8 +734,7 @@ function renderNLTrack(players, title, lpMin, lpMax, trackWidth) {
   const baselineY = 20 + maxLane * (NL_LABEL_H + NL_LABEL_V_GAP);
   const trackH = baselineY + 50;
 
-  let html = `<div class="nl-track-title">${title}</div>`;
-  html += `<div class="nl-track-section" style="height:${trackH}px;width:${trackWidth}px;">`;
+  let html = `<div class="nl-track-section" style="height:${trackH}px;width:${trackWidth}px;">`;
 
   // Baseline
   html += `<div class="nl-baseline" style="top:${baselineY}px;"></div>`;
@@ -749,9 +748,6 @@ function renderNLTrack(players, title, lpMin, lpMax, trackWidth) {
     html += `<div class="nl-tier-label" style="left:${x1}px;top:${baselineY + 16}px;color:${zone.color};">${zone.tier}</div>`;
   });
 
-  // Left-end label
-  const leftLabel = lpMin === 0 ? 'Iron—' : 'Plat+';
-  html += `<div class="nl-tier-label nl-tier-label-left" style="left:${NL_PADDING_LEFT}px;top:${baselineY + 16}px;color:#888;">${leftLabel}</div>`;
 
   // Players
   items.forEach(({ p, x, lane }) => {
