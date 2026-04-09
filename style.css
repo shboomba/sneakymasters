@@ -366,7 +366,6 @@ main {
   border-color: #6b2d8b !important;
   border-style: dashed !important;
   border-width: 2px !important;
-  animation: skull-pulse 2s ease-in-out infinite alternate;
   overflow: hidden;
 }
 
@@ -383,10 +382,6 @@ main {
   line-height: 1;
 }
 
-@keyframes skull-pulse {
-  from { box-shadow: 0 0 12px rgba(107,45,139,0.35); }
-  to   { box-shadow: 0 0 28px rgba(150,50,200,0.55); }
-}
 
 .card-streak-win > *,
 .card-streak-loss > * {
