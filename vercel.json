@@ -23,6 +23,10 @@
     "api/discord-interactions.js": {
       "memory": 128,
       "maxDuration": 10
+    },
+    "api/gamba.js": {
+      "memory": 128,
+      "maxDuration": 10
     }
   }
 }

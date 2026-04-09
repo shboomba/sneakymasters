@@ -195,57 +195,95 @@ main {
   border: 1px solid var(--border);
   border-left: 4px solid var(--tier-color, var(--border));
   border-radius: var(--radius);
-  padding: 20px;
   position: relative;
-  transition: var(--transition);
+  perspective: 1000px;
+  transition: background var(--transition), box-shadow var(--transition);
 }
 
-.player-card:hover { background: var(--bg-card-hover); }
+.player-card:not(.is-flipped):hover { background: var(--bg-card-hover); cursor: pointer; }
 
 .player-card.rank-first {
   box-shadow: 0 0 20px var(--tier-glow, transparent), 0 0 0 1px var(--tier-color, transparent);
 }
 
 /* ─── Card Flip ─────────────────────────────────────────────────────────────── */
-.player-card .card-back { display: none; }
-.player-card.is-flipped .card-front { display: none; }
-.player-card.is-flipped .card-back { display: flex; flex-direction: column; gap: 10px; min-height: 180px; cursor: pointer; }
-.player-card.is-flipped .card-note-input { cursor: text; }
-
-.btn-flip {
-  background: none;
-  border: none;
-  color: transparent;
-  font-size: 14px;
-  padding: 2px 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: var(--transition);
+.card-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: calc(var(--radius) - 1px);
+  overflow: hidden;
 }
-.player-card:hover .btn-flip { opacity: 0.4; color: var(--text-muted); }
-.player-card:hover .btn-flip:hover { opacity: 1; color: var(--gold); }
+
+.player-card.is-flipped .card-inner { transform: rotateY(180deg); }
+
+.card-front {
+  padding: 20px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card-back {
+  position: absolute;
+  inset: 0;
+  padding: 20px;
+  background: var(--bg-card);
+  border-radius: calc(var(--radius) - 1px);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* ─── Note display (flashcard view) ─────────────────────────────────────────── */
+.note-display {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: linear-gradient(160deg, #0d1525 0%, var(--bg-primary) 100%);
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  cursor: text;
+  min-height: 80px;
+  position: relative;
+  transition: border-color var(--transition);
+}
+.note-display:hover { border-color: var(--gold-dark); }
+.note-display::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.note-placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 11px; }
 
 .card-back-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-note-label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  font-family: 'Cinzel', serif;
 }
 
 .card-note-input {
   background: var(--bg-primary);
-  border: 1px solid var(--border);
+  border: 1px solid var(--gold-dark);
   border-radius: 4px;
   color: var(--text-primary);
   font-family: 'Inter', sans-serif;
@@ -254,10 +292,11 @@ main {
   padding: 8px 10px;
   resize: vertical;
   width: 100%;
+  flex: 1;
   transition: border-color var(--transition);
 }
-.card-note-input:focus { outline: none; border-color: var(--gold-dark); }
-.card-note-input::placeholder { color: var(--text-muted); }
+.card-note-input:focus { outline: none; border-color: var(--gold); }
+.card-note-input.hidden { display: none; }
 
 /* ─── Card Header ────────────────────────────────────────────────────────────── */
 .card-header {
@@ -921,6 +960,167 @@ main {
 }
 
 .nl-arrow { display: none; }
+
+/* ─── Gamba Tab ──────────────────────────────────────────────────────────────── */
+#gamba-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 8px 0 40px;
+}
+
+.gamba-loading {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 0;
+  font-family: var(--font-body);
+}
+
+.gamba-section {
+  margin-bottom: 36px;
+}
+
+.gamba-section-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.gamba-section-sub {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.gamba-empty {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  padding: 12px 0;
+}
+
+/* Points leaderboard */
+.gamba-points-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gamba-points-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+}
+
+.gamba-points-row.gamba-top-1 { border-color: #ffd70066; background: linear-gradient(90deg, rgba(255,215,0,0.06) 0%, transparent 60%); }
+.gamba-points-row.gamba-top-2 { border-color: #c0c0c066; background: linear-gradient(90deg, rgba(192,192,192,0.06) 0%, transparent 60%); }
+.gamba-points-row.gamba-top-3 { border-color: #cd853f66; background: linear-gradient(90deg, rgba(205,133,63,0.06) 0%, transparent 60%); }
+
+.gamba-rank {
+  font-size: 1rem;
+  min-width: 28px;
+  text-align: center;
+}
+
+.gamba-user-id {
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.gamba-pts {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+/* Bet cards */
+.gamba-bets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gamba-bet-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-family: var(--font-body);
+}
+
+.gamba-bet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.gamba-bet-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.gamba-bet-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.gamba-status-open { background: rgba(80,200,120,0.15); color: #50c878; border: 1px solid rgba(80,200,120,0.3); }
+.gamba-status-resolved { background: rgba(180,180,180,0.1); color: var(--text-muted); border: 1px solid var(--border); }
+
+.gamba-bet-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.gamba-bet-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.gamba-bet-meta code {
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.78rem;
+}
+
+.gamba-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.gamba-choice {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.gamba-choice-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
 
 /* ─── Modal ──────────────────────────────────────────────────────────────────── */
 .modal-overlay {

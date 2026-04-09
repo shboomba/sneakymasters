@@ -419,6 +419,7 @@ async function refreshAll() {
   renderLeaderboard();
   if (activeTab === 'rankings') renderRankingsTab();
   if (activeTab === 'numberline') renderNumberLineTab();
+  if (activeTab === 'gamba') renderGambaTab();
 
   refreshBtn.disabled = false;
   refreshBtn.textContent = 'Refresh All';
@@ -572,43 +573,48 @@ function renderCard(player, position, draggable = false) {
 
   const note = getNote(pKey);
 
+  const noteHtml = note
+    ? escHtml(note)
+    : `<span class="note-placeholder">Click to add notes...</span>`;
+
   return `
     <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}${streakClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
-      <div class="card-front">
-        <div class="card-header">
-          <div class="card-identity">
-            <div class="card-name-row">
-              <div class="card-game-name">${escHtml(player.gameName)}</div>
+      <div class="card-inner">
+        <div class="card-front">
+          <div class="card-header">
+            <div class="card-identity">
+              <div class="card-name-row">
+                <div class="card-game-name">${escHtml(player.gameName)}</div>
+              </div>
+              <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
             </div>
-            <div class="card-tag-line">#${escHtml(player.tagLine)}</div>
+            ${player.roles && player.roles.length > 0
+              ? `<div class="card-roles">${player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')}</div>`
+              : ''}
+            <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
+            <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
           </div>
-          ${player.roles && player.roles.length > 0
-            ? `<div class="card-roles">${player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')}</div>`
-            : ''}
-          <button class="btn-flip" title="Player notes">&#9998;</button>
-          <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
-          <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
-        </div>
-        <div class="card-rank-info">
-          <span class="tier-badge">${tierDisplay}</span>
-          <span class="lp-display">${lpDisplay}</span>
-        </div>
-        ${champHtml}
-        <div class="card-record">${recordHtml}</div>
-        ${mastersBanner}
-        ${streakBanner}
-        ${errorMsg}
-        <div class="card-footer">
-          <button class="btn-graph-toggle" data-graph-key="${graphKey}">LP History</button>
-          <div class="graph-panel" id="graph-${graphKey}">
-            ${graphHtml}
+          <div class="card-rank-info">
+            <span class="tier-badge">${tierDisplay}</span>
+            <span class="lp-display">${lpDisplay}</span>
+          </div>
+          ${champHtml}
+          <div class="card-record">${recordHtml}</div>
+          ${mastersBanner}
+          ${streakBanner}
+          ${errorMsg}
+          <div class="card-footer">
+            <button class="btn-graph-toggle" data-graph-key="${graphKey}">LP History</button>
+            <div class="graph-panel" id="graph-${graphKey}">
+              ${graphHtml}
+            </div>
           </div>
         </div>
-      </div>
-      <div class="card-back">
-        <span class="card-back-name">${escHtml(player.gameName)}</span>
-        <label class="card-note-label">Notes</label>
-        <textarea class="card-note-input" data-player-key="${pKey}" placeholder="Add notes about this player..." rows="5">${escHtml(note)}</textarea>
+        <div class="card-back">
+          <span class="card-back-name">${escHtml(player.gameName)}</span>
+          <div class="note-display">${noteHtml}</div>
+          <textarea class="card-note-input hidden" data-player-key="${pKey}" rows="4">${escHtml(note)}</textarea>
+        </div>
       </div>
     </div>`;
 }
@@ -926,6 +932,7 @@ async function removePlayer(gameName, tagLine) {
   renderLeaderboard();
   if (activeTab === 'rankings') renderRankingsTab();
   if (activeTab === 'numberline') renderNumberLineTab();
+  // gamba tab fetches fresh data on activation; no re-render needed here
 }
 
 /* ─── Modal ──────────────────────────────────────────────────────────────────── */
@@ -1018,18 +1025,44 @@ function setupEventListeners() {
       return;
     }
 
-    const flipBtn = e.target.closest('.btn-flip');
-    if (flipBtn) {
-      flipBtn.closest('.player-card').classList.add('is-flipped');
+    // Click card front (not a button/link/graph area) → flip to back
+    const cardFront = e.target.closest('.card-front');
+    if (cardFront && !e.target.closest('button, a, input, select, textarea, .graph-panel')) {
+      cardFront.closest('.player-card').classList.add('is-flipped');
       return;
     }
 
-    // Clicking anywhere on the back (except the textarea) flips back to front
+    // Click note-display → switch to edit mode
+    const noteDisplay = e.target.closest('.note-display');
+    if (noteDisplay) {
+      const back = noteDisplay.closest('.card-back');
+      noteDisplay.classList.add('hidden');
+      const ta = back.querySelector('.card-note-input');
+      ta.classList.remove('hidden');
+      ta.focus();
+      return;
+    }
+
+    // Click card-back (not note area) → flip back to front
     const cardBack = e.target.closest('.card-back');
-    if (cardBack && !e.target.closest('.card-note-input')) {
+    if (cardBack && !e.target.closest('.note-display, .card-note-input')) {
       cardBack.closest('.player-card').classList.remove('is-flipped');
       return;
     }
+  });
+
+  // Auto-save + switch back to display when textarea loses focus
+  document.getElementById('leaderboard').addEventListener('focusout', e => {
+    const textarea = e.target.closest('.card-note-input');
+    if (!textarea) return;
+    saveNote(textarea.dataset.playerKey, textarea.value);
+    const back = textarea.closest('.card-back');
+    const display = back.querySelector('.note-display');
+    display.innerHTML = textarea.value
+      ? escHtml(textarea.value)
+      : `<span class="note-placeholder">Click to add notes...</span>`;
+    textarea.classList.add('hidden');
+    display.classList.remove('hidden');
   });
 
   // Auto-save card notes on input
@@ -1074,6 +1107,7 @@ function setupEventListeners() {
 
       if (tab === 'rankings') renderRankingsTab();
       if (tab === 'numberline') renderNumberLineTab();
+      if (tab === 'gamba') renderGambaTab();
     });
   });
 }
@@ -1127,6 +1161,71 @@ function setupSuggestionWidget() {
     submit.disabled = false;
     submit.textContent = 'Send';
   });
+}
+
+/* ─── Gamba Tab ──────────────────────────────────────────────────────────────── */
+async function renderGambaTab() {
+  const container = document.getElementById('gamba-container');
+  if (!container) return;
+  container.innerHTML = `<div class="gamba-loading">Loading Gamba data...</div>`;
+
+  let data;
+  try {
+    const res = await fetch('/api/gamba');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state"><h2>Could not load Gamba data</h2><p>${escHtml(err.message)}</p></div>`;
+    return;
+  }
+
+  const { points, bets, startingPts } = data;
+  const medals = ['🥇', '🥈', '🥉'];
+
+  // Points leaderboard
+  const pointsHtml = points.length === 0
+    ? `<p class="gamba-empty">No one has used /points yet.</p>`
+    : points.map((p, i) => `
+        <div class="gamba-points-row${i < 3 ? ` gamba-top-${i + 1}` : ''}">
+          <span class="gamba-rank">${i < 3 ? medals[i] : `#${i + 1}`}</span>
+          <span class="gamba-user-id">${escHtml(p.userId)}</span>
+          <span class="gamba-pts">${p.pts.toLocaleString()} pts</span>
+        </div>`).join('');
+
+  // Bet history
+  const betsHtml = bets.length === 0
+    ? `<p class="gamba-empty">No bets yet. Use /bet create in Discord!</p>`
+    : bets.map(b => {
+        const statusClass = b.status === 'open' ? 'gamba-status-open' : 'gamba-status-resolved';
+        const statusLabel = b.status === 'open' ? 'Open' : `Resolved — winner: ${escHtml(b.winner || '?')}`;
+        const choiceLines = Object.entries(b.choices).map(([choice, entries]) => {
+          const total = entries.reduce((s, e) => s + e.amount, 0);
+          const names = entries.map(e => escHtml(e.username)).join(', ');
+          return `<div class="gamba-choice"><span class="gamba-choice-name">${escHtml(choice)}</span> — ${total} pts (${names})</div>`;
+        }).join('');
+
+        return `
+          <div class="gamba-bet-card">
+            <div class="gamba-bet-header">
+              <span class="gamba-bet-title">${escHtml(b.title)}</span>
+              <span class="gamba-bet-status ${statusClass}">${statusLabel}</span>
+            </div>
+            ${b.description ? `<div class="gamba-bet-desc">${escHtml(b.description)}</div>` : ''}
+            <div class="gamba-bet-meta">ID: <code>${escHtml(b.id)}</code> · Pot: ${b.totalPot.toLocaleString()} pts · By ${escHtml(b.creatorName)}</div>
+            ${choiceLines ? `<div class="gamba-choices">${choiceLines}</div>` : ''}
+          </div>`;
+      }).join('');
+
+  container.innerHTML = `
+    <div class="gamba-section">
+      <h2 class="gamba-section-title">Points Leaderboard</h2>
+      <p class="gamba-section-sub">Starting balance: ${startingPts.toLocaleString()} pts &nbsp;·&nbsp; Earn more by winning bets</p>
+      <div class="gamba-points-list">${pointsHtml}</div>
+    </div>
+    <div class="gamba-section">
+      <h2 class="gamba-section-title">Bet History</h2>
+      <div class="gamba-bets-list">${betsHtml}</div>
+    </div>`;
 }
 
 /* ─── Init ───────────────────────────────────────────────────────────────────── */

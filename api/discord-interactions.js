@@ -117,7 +117,10 @@ async function cmdLeaderboard() {
 
 async function cmdPoints(userId, username) {
   const pts = await getUserPoints(userId);
-  return ephemeral(`💰 **${username}**, you have **${pts.toLocaleString()} points**.`);
+  return reply([{
+    description: `💰 **${username}** has **${pts.toLocaleString()} Gamba points**.`,
+    color: 0xc89b3c
+  }]);
 }
 
 async function cmdBetCreate(userId, username, title, description) {
