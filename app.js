@@ -4,7 +4,7 @@ const POS_HISTORY_KEY = 'rtm_pos_history';
 const CHAMPIONS_KEY   = 'rtm_champions';
 
 const LP_HISTORY_MAX     = 200;
-const CHAMPION_TTL       = 12 * 60 * 60 * 1000; // 12 hours
+const CHAMPION_TTL       = 60 * 60 * 1000; // 1 hour
 const POS_HISTORY_MAX_AGE = 35 * 24 * 60 * 60 * 1000; // 35 days
 
 const MASTERS_THRESHOLD = 2800;
@@ -214,11 +214,9 @@ function getCachedChampions(gameName, tagLine, currentLP) {
   const entry = c[playerKey(gameName, tagLine)];
   if (!entry) return null;
   if (Date.now() - entry.ts > CHAMPION_TTL) return null;
-  // Invalidate if LP changed since cache was written (game played since last fetch)
+  // Invalidate if LP changed since cache was written — means a game was played
   if (currentLP !== undefined && entry.lp !== currentLP) return null;
-  // Invalidate old entries without roles
-  if (!Array.isArray(entry.roles) || entry.roles.length === 0) return null;
-  return { champions: entry.champions, streak: entry.streak || null, roles: entry.roles };
+  return { champions: entry.champions || [], streak: entry.streak || null, roles: entry.roles || [] };
 }
 
 function cacheChampions(gameName, tagLine, champions, streak, roles, lp) {
