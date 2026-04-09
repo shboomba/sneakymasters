@@ -1,3 +1,14 @@
+async function riotFetch(url, key, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const r = await fetch(url, { headers: { 'X-Riot-Token': key } });
+    if (r.status !== 429) return r;
+    const wait = parseInt(r.headers.get('Retry-After') || '2', 10);
+    await new Promise(resolve => setTimeout(resolve, wait * 1000));
+  }
+  // Return last response (still 429)
+  return fetch(url, { headers: { 'X-Riot-Token': key } });
+}
+
 export default async function handler(req, res) {
   const { gameName, tagLine } = req.query;
 
@@ -15,9 +26,7 @@ export default async function handler(req, res) {
   try {
     // Step 1: Get PUUID from Riot ID
     const accountUrl = `https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-    const accountRes = await fetch(accountUrl, {
-      headers: { 'X-Riot-Token': RIOT_KEY }
-    });
+    const accountRes = await riotFetch(accountUrl, RIOT_KEY);
 
     if (accountRes.status === 403) {
       return res.status(403).json({ error: 'API key invalid or expired — renew at developer.riotgames.com' });
@@ -37,9 +46,7 @@ export default async function handler(req, res) {
 
     // Step 2: Get ranked entries by PUUID
     const leagueUrl = `https://na1.api.riotgames.com/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`;
-    const leagueRes = await fetch(leagueUrl, {
-      headers: { 'X-Riot-Token': RIOT_KEY }
-    });
+    const leagueRes = await riotFetch(leagueUrl, RIOT_KEY);
 
     if (leagueRes.status === 403) {
       return res.status(403).json({ error: 'API key invalid or expired — renew at developer.riotgames.com' });

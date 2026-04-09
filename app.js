@@ -349,8 +349,10 @@ async function refreshAll() {
   }
   renderLeaderboard();
 
-  // Fetch rank data sequentially
-  for (const p of players) {
+  // Fetch rank data sequentially with a small gap to avoid rate limits
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    if (i > 0) await new Promise(r => setTimeout(r, 1000));
     try {
       const data = await fetchPlayerData(p.gameName, p.tagLine);
       upsertPlayer(data);
