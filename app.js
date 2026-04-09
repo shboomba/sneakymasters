@@ -214,7 +214,8 @@ function getCachedChampions(gameName, tagLine) {
   const entry = c[playerKey(gameName, tagLine)];
   if (!entry) return null;
   if (Date.now() - entry.ts > CHAMPION_TTL) return null;
-  return { champions: entry.champions, streak: entry.streak || null, roles: entry.roles || [] };
+  if (!entry.roles) return null; // invalidate old cache entries that predate role tracking
+  return { champions: entry.champions, streak: entry.streak || null, roles: entry.roles };
 }
 
 function cacheChampions(gameName, tagLine, champions, streak, roles) {
@@ -293,9 +294,14 @@ function upsertPlayer(data) {
     if (data.error && enrichedPlayers[idx].tier) {
       enrichedPlayers[idx] = { ...enrichedPlayers[idx], loading: false, error: data.error };
     } else {
-      // Preserve existing champions array if not yet updated
-      const existingChampions = enrichedPlayers[idx].champions;
-      enrichedPlayers[idx] = { ...data, champions: data.champions || existingChampions || [] };
+      // Preserve existing champions/roles/streak if not yet updated
+      const existing = enrichedPlayers[idx];
+      enrichedPlayers[idx] = {
+        ...data,
+        champions: data.champions?.length ? data.champions : (existing.champions || []),
+        roles: data.roles?.length ? data.roles : (existing.roles || []),
+        streak: data.streak ?? existing.streak ?? null,
+      };
     }
   }
 }
@@ -773,15 +779,15 @@ function renderNumberLineTab() {
     return;
   }
 
-  const mid = Math.ceil(players.length / 2);
-  const topGroup    = players.slice(0, mid);   // higher LP
-  const bottomGroup = players.slice(mid);       // lower LP
+  const PLATINUM_LP = 1600; // Platinum IV threshold
+  const topGroup    = players.filter(p => (p.totalLP || 0) >= PLATINUM_LP);
+  const bottomGroup = players.filter(p => (p.totalLP || 0) <  PLATINUM_LP);
 
   track.style.height = 'auto';
-  track.innerHTML =
-    renderNLTrack(topGroup, 'Higher LP') +
-    `<div class="nl-track-divider"></div>` +
-    renderNLTrack(bottomGroup, 'Lower LP');
+  const topHtml    = topGroup.length    ? renderNLTrack(topGroup,    'Platinum+') : '';
+  const bottomHtml = bottomGroup.length ? renderNLTrack(bottomGroup, 'Gold & Below') : '';
+  const divider    = topHtml && bottomHtml ? `<div class="nl-track-divider"></div>` : '';
+  track.innerHTML  = topHtml + divider + bottomHtml;
 
   const scrollEl = document.getElementById('numberline-scroll');
   scrollEl.scrollLeft = scrollEl.scrollWidth;
