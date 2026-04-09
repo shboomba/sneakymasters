@@ -631,28 +631,6 @@ main {
   padding: 8px 0;
 }
 
-.graph-win-toggle {
-  display: flex;
-  gap: 4px;
-  margin: 6px 0 4px;
-}
-
-.graph-win-btn {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  cursor: pointer;
-  transition: var(--transition);
-  font-family: 'Inter', sans-serif;
-  letter-spacing: 0.04em;
-}
-
-.graph-win-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
-.graph-win-btn.active { color: var(--gold); border-color: var(--gold-dark); background: rgba(200,155,60,0.08); }
 
 .lp-chart {
   width: 100%;

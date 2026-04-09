@@ -2,7 +2,6 @@
 const STARRED_KEY     = 'rtm_starred';
 const POS_HISTORY_KEY = 'rtm_pos_history';
 const CHAMPIONS_KEY   = 'rtm_champions';
-const GRAPH_WIN_KEY   = 'rtm_graph_win';
 const NOTES_KEY       = 'rtm_notes';
 
 const LP_HISTORY_MAX     = 200;
@@ -623,34 +622,14 @@ function renderChampions(player) {
   return `<div class="card-champions">${icons}</div>`;
 }
 
-/* ─── Graph Window Preference ────────────────────────────────────────────────── */
-function loadGraphWindows() {
-  try { return JSON.parse(localStorage.getItem(GRAPH_WIN_KEY)) || {}; } catch { return {}; }
-}
-function getGraphWindow(gameName, tagLine) {
-  return loadGraphWindows()[playerKey(gameName, tagLine)] || '7d';
-}
-// Exposed globally so inline onclick handlers can call it
-window.setGraphWin = function(pKey, win) {
-  const wins = loadGraphWindows();
-  wins[pKey] = win;
-  localStorage.setItem(GRAPH_WIN_KEY, JSON.stringify(wins));
-  const panel = document.getElementById(`graph-${pKey.replace(/[^a-z0-9]/g, '-')}`);
-  if (!panel) return;
-  const p = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === pKey);
-  if (p) panel.innerHTML = renderGraphPanel(p);
-};
-
 function renderGraphPanel(player) {
-  const allHistory = getPlayerLPHistory(player.gameName, player.tagLine);
-  const win = getGraphWindow(player.gameName, player.tagLine);
-  const pKey = playerKey(player.gameName, player.tagLine);
+  const history = getPlayerLPHistory(player.gameName, player.tagLine);
 
   function lpChangeSince(ms) {
     const cutoff = Date.now() - ms;
-    const inRange = allHistory.filter(e => e.ts >= cutoff);
-    if (inRange.length === 0 || allHistory.length === 0) return null;
-    return allHistory[allHistory.length - 1].lp - inRange[0].lp;
+    const inRange = history.filter(e => e.ts >= cutoff);
+    if (inRange.length === 0 || history.length === 0) return null;
+    return history[history.length - 1].lp - inRange[0].lp;
   }
   function formatChange(val) {
     if (val === null) return `<span class="neutral">—</span>`;
@@ -659,44 +638,38 @@ function renderGraphPanel(player) {
     return `<span class="neutral">±0 LP</span>`;
   }
 
-  const change24 = lpChangeSince(24 * 60 * 60 * 1000);
-  const change7  = lpChangeSince(7  * 24 * 60 * 60 * 1000);
-
   const statsHtml = `
     <div class="graph-stats">
-      <div class="graph-stat">Last 24h<span>${formatChange(change24)}</span></div>
-      <div class="graph-stat">Last 7d<span>${formatChange(change7)}</span></div>
+      <div class="graph-stat">Last 24h<span>${formatChange(lpChangeSince(24 * 60 * 60 * 1000))}</span></div>
+      <div class="graph-stat">Last 7d<span>${formatChange(lpChangeSince(7 * 24 * 60 * 60 * 1000))}</span></div>
     </div>`;
 
-  const winBtns = ['24h', '7d', 'all'].map(w =>
-    `<button class="graph-win-btn${win === w ? ' active' : ''}" onclick="setGraphWin('${pKey}','${w}')">${w}</button>`
-  ).join('');
-  const toggleHtml = `<div class="graph-win-toggle">${winBtns}</div>`;
+  const chartHtml = buildSVGChart(history)
+    || `<p class="graph-no-data">Refresh a few more times to build history.</p>`;
 
-  const chartHtml = buildSVGChart(allHistory, win)
-    || `<p class="graph-no-data">Not enough data for this window.</p>`;
-
-  return statsHtml + toggleHtml + chartHtml;
+  return statsHtml + chartHtml;
 }
 
-function buildSVGChart(rawHistory, win) {
+const TIER_MARKERS = [
+  { lp: 400,  label: 'B', color: '#cd853f' },
+  { lp: 800,  label: 'S', color: '#c0c0c0' },
+  { lp: 1200, label: 'G', color: '#ffd700' },
+  { lp: 1600, label: 'P', color: '#40e0d0' },
+  { lp: 2000, label: 'E', color: '#50c878' },
+  { lp: 2400, label: 'D', color: '#b9d4f5' },
+  { lp: 2800, label: 'M', color: '#d7a2e8' },
+];
+
+function buildSVGChart(rawHistory) {
   const W = 300, H = 80;
   const PAD = { top: 8, right: 8, bottom: 8, left: 8 };
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
-  // 1. Filter to selected time window
-  let history = rawHistory;
-  if (win === '24h') {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    history = rawHistory.filter(e => e.ts >= cutoff);
-  } else if (win === '7d') {
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    history = rawHistory.filter(e => e.ts >= cutoff);
-  }
-  if (history.length < 2) return null;
+  if (rawHistory.length < 2) return null;
 
-  // 2. Downsample to max 60 points (keep first + last)
+  // Downsample to max 60 points (keep first + last)
+  let history = rawHistory;
   if (history.length > 60) {
     const step = Math.ceil(history.length / 58);
     const sampled = history.filter((_, i) => i % step === 0);
@@ -706,7 +679,7 @@ function buildSVGChart(rawHistory, win) {
     history = sampled;
   }
 
-  // 3. Time-based X with gap capping (max 3h gap rendered as ≤20% of width)
+  // Time-based X with gap capping (max 3h gap)
   const MAX_GAP_MS = 3 * 60 * 60 * 1000;
   const virtualTs = [history[0].ts];
   for (let i = 1; i < history.length; i++) {
@@ -718,13 +691,29 @@ function buildSVGChart(rawHistory, win) {
   const lps = history.map(e => e.lp);
   const minLP = Math.min(...lps);
   const maxLP = Math.max(...lps);
-  const lpRange = maxLP - minLP || 1;
+  // Expand range slightly so tier lines near edges aren't clipped
+  const pad = (maxLP - minLP) * 0.08 || 50;
+  const visMin = minLP - pad;
+  const visMax = maxLP + pad;
+  const lpRange = visMax - visMin;
+
+  function lpToY(lp) {
+    return PAD.top + (1 - (lp - visMin) / lpRange) * cH;
+  }
 
   const pts = history.map((e, i) => {
     const x = PAD.left + ((virtualTs[i] - virtualTs[0]) / tsRange) * cW;
-    const y = PAD.top + (1 - (e.lp - minLP) / lpRange) * cH;
-    return [x.toFixed(1), y.toFixed(1)];
+    return [x.toFixed(1), lpToY(e.lp).toFixed(1)];
   });
+
+  // Tier boundary lines — only those within visible LP range
+  const tierLines = TIER_MARKERS
+    .filter(t => t.lp > visMin && t.lp < visMax)
+    .map(t => {
+      const y = lpToY(t.lp).toFixed(1);
+      return `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="${t.color}" stroke-width="0.75" stroke-dasharray="3,3" opacity="0.45"/>
+              <text x="${W - PAD.right - 1}" y="${(parseFloat(y) - 1.5).toFixed(1)}" fill="${t.color}" font-size="5" text-anchor="end" opacity="0.7">${t.label}</text>`;
+    }).join('');
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ');
   const bottomY  = (PAD.top + cH).toFixed(1);
@@ -733,6 +722,7 @@ function buildSVGChart(rawHistory, win) {
 
   return `
     <svg class="lp-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      ${tierLines}
       <path class="chart-area" d="${areaPath}"/>
       <path class="chart-line" d="${linePath}"/>
       <circle class="chart-dot" cx="${lastX}" cy="${lastY}" r="3"/>
