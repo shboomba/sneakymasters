@@ -2,7 +2,8 @@
 const STARRED_KEY      = 'rtm_starred';
 const POS_BASELINE_KEY = 'rtm_pos_baseline';
 const CHAMPIONS_KEY    = 'rtm_champions';
-const NOTES_KEY        = 'rtm_notes';
+// Notes are stored in KV (shared), cached locally
+let notesCache = {};
 
 const LP_HISTORY_MAX = 200;
 const CHAMPION_TTL   = 60 * 60 * 1000; // 1 hour
@@ -130,15 +131,27 @@ function isStarred(gameName, tagLine) {
   return loadStarred().has(playerKey(gameName, tagLine));
 }
 
-/* ─── LocalStorage: Player Notes ─────────────────────────────────────────────── */
-function loadNotes() {
-  try { return JSON.parse(localStorage.getItem(NOTES_KEY)) || {}; } catch { return {}; }
+/* ─── Shared Notes (KV) ──────────────────────────────────────────────────────── */
+async function fetchNotes() {
+  try {
+    const res = await fetch('/api/notes');
+    if (!res.ok) return;
+    const { notes } = await res.json();
+    notesCache = notes || {};
+  } catch {}
 }
-function getNote(pKey) { return loadNotes()[pKey] || ''; }
+
+function getNote(pKey) { return notesCache[pKey] || ''; }
+
 function saveNote(pKey, text) {
-  const notes = loadNotes();
-  if (text) notes[pKey] = text; else delete notes[pKey];
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  // Update cache immediately so re-renders show the latest
+  if (text) notesCache[pKey] = text; else delete notesCache[pKey];
+  // Persist to KV (fire and forget)
+  fetch('/api/notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: pKey, note: text || '' })
+  }).catch(() => {});
 }
 
 /* ─── LP History (shared via KV) ─────────────────────────────────────────────── */
@@ -619,8 +632,7 @@ function renderCard(player, position, draggable = false) {
         </div>
         <div class="card-back">
           <span class="card-back-name">${escHtml(player.gameName)}</span>
-          <div class="note-display">${note ? escHtml(note) : `<span class="note-placeholder">Double-click to add notes...</span>`}</div>
-          <textarea class="card-note-input hidden" data-player-key="${pKey}" placeholder="Write your notes here...">${escHtml(note)}</textarea>
+          <textarea class="card-note-input" data-player-key="${pKey}" placeholder="Double-click to add notes..." readonly>${escHtml(note)}</textarea>
         </div>
       </div>
     </div>`;
@@ -1040,43 +1052,28 @@ function setupEventListeners() {
       return;
     }
 
-    // Click card-back outside note areas → flip back to front
+    // Click card-back outside textarea → flip back to front
     const cardBack = e.target.closest('.card-back');
-    if (cardBack && !e.target.closest('.note-display, .card-note-input')) {
+    if (cardBack && !e.target.closest('.card-note-input')) {
       cardBack.closest('.player-card').classList.remove('is-flipped');
       return;
     }
   });
 
-  // Double-click note display → enter edit mode
+  // Double-click textarea → unlock editing
   document.getElementById('leaderboard').addEventListener('dblclick', e => {
-    const display = e.target.closest('.note-display');
-    if (!display) return;
-    const back = display.closest('.card-back');
-    display.classList.add('hidden');
-    const ta = back.querySelector('.card-note-input');
-    ta.classList.remove('hidden');
-    ta.focus();
+    const textarea = e.target.closest('.card-note-input');
+    if (!textarea) return;
+    textarea.removeAttribute('readonly');
+    textarea.focus();
   });
 
-  // Save note + exit edit mode on blur
+  // Blur textarea → lock and save
   document.getElementById('leaderboard').addEventListener('focusout', e => {
     const textarea = e.target.closest('.card-note-input');
     if (!textarea) return;
+    textarea.setAttribute('readonly', '');
     saveNote(textarea.dataset.playerKey, textarea.value);
-    const back = textarea.closest('.card-back');
-    const display = back.querySelector('.note-display');
-    display.innerHTML = textarea.value
-      ? escHtml(textarea.value)
-      : `<span class="note-placeholder">Double-click to add notes...</span>`;
-    textarea.classList.add('hidden');
-    display.classList.remove('hidden');
-  });
-
-  // Auto-save note on input
-  document.getElementById('leaderboard').addEventListener('input', e => {
-    const textarea = e.target.closest('.card-note-input');
-    if (textarea) saveNote(textarea.dataset.playerKey, textarea.value);
   });
 
   // Filter dropdown
@@ -1245,8 +1242,8 @@ async function renderGambaTab() {
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupSuggestionWidget();
-  getDDragonVersion(); // warm up version cache
-  refreshAll();
+  getDDragonVersion();
+  fetchNotes().then(() => refreshAll());
 });
 
 window.addEventListener('resize', () => {
