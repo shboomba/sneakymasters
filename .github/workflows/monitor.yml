@@ -1,8 +1,6 @@
 name: Leaderboard Monitor
 
 on:
-  schedule:
-    - cron: '* * * * *'
   workflow_dispatch:
 
 jobs:
