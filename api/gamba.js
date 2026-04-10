@@ -2,10 +2,11 @@
 const KV_URL   = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 
-const POINTS_KEY    = 'rtm_gamba_points';
-const BETS_KEY      = 'rtm_gamba_bets';
-const USERNAMES_KEY = 'rtm_gamba_usernames';
-const STARTING_PTS  = 1000;
+const POINTS_KEY      = 'rtm_gamba_points';
+const BETS_KEY        = 'rtm_gamba_bets';
+const USERNAMES_KEY   = 'rtm_gamba_usernames';
+const CONNECTIONS_KEY = 'rtm_gamba_connections';
+const STARTING_PTS    = 1000;
 
 async function kvGet(key) {
   const r = await fetch(`${KV_URL}/get/${key}`, {
@@ -22,19 +23,26 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method !== 'GET') return res.status(405).end();
 
-  const [rawPoints, rawBets, rawUsernames] = await Promise.all([
+  const [rawPoints, rawBets, rawUsernames, rawConnections] = await Promise.all([
     kvGet(POINTS_KEY),
     kvGet(BETS_KEY),
-    kvGet(USERNAMES_KEY)
+    kvGet(USERNAMES_KEY),
+    kvGet(CONNECTIONS_KEY)
   ]);
 
-  const points    = rawPoints    || {};
-  const bets      = rawBets      || {};
-  const usernames = rawUsernames || {};
+  const points      = rawPoints      || {};
+  const bets        = rawBets        || {};
+  const usernames   = rawUsernames   || {};
+  const connections = rawConnections || {};
 
-  // Build points leaderboard (sorted descending), showing display names
+  // Build points leaderboard (sorted descending), showing display names + linked summoner
   const pointsList = Object.entries(points)
-    .map(([userId, pts]) => ({ userId, name: usernames[userId] || userId, pts }))
+    .map(([userId, pts]) => ({
+      userId,
+      name: usernames[userId] || userId,
+      pts,
+      summoner: connections[userId] || null  // "gameName#tagLine" or null
+    }))
     .sort((a, b) => b.pts - a.pts);
 
   // All bets sorted newest first

@@ -281,7 +281,7 @@ main {
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text-primary);
-  font-family: 'Cinzel', serif;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   line-height: 1.7;
   padding: 14px 16px;
@@ -301,7 +301,7 @@ main {
   box-shadow: inset 0 0 0 1px rgba(200,155,60,0.2);
   cursor: text;
 }
-.card-note-input::placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 11px; }
+.card-note-input::placeholder { color: var(--text-muted); font-size: 11px; }
 
 /* ─── Match history dots ─────────────────────────────────────────────────────── */
 .match-dots {
@@ -747,11 +747,11 @@ main {
 
 /* ─── Rankings Tab ───────────────────────────────────────────────────────────── */
 #rankings-list {
-  max-width: 700px;
+  max-width: 760px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .ranking-row {
@@ -759,20 +759,21 @@ main {
   align-items: center;
   gap: 14px;
   padding: 12px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--tier-color, var(--border));
+  background: #141e2e;
+  border: 1px solid #2a3a50;
+  border-left: 3px solid var(--tier-color, #2a3a50);
   border-radius: var(--radius);
   transition: background var(--transition);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
-.ranking-row:hover { background: var(--bg-card-hover); }
+.ranking-row:hover { background: #19253a; }
 
 .ranking-pos {
   font-family: 'Inter', sans-serif;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: #8a9ab0;
   min-width: 36px;
   text-align: center;
 }
@@ -782,49 +783,52 @@ main {
 .ranking-top-3 .ranking-pos { font-size: 28px; line-height: 1; }
 
 @keyframes pulse-gold {
-  0%, 100% { text-shadow: 0 0 8px rgba(255,215,0,0.6); }
-  50%       { text-shadow: 0 0 18px rgba(255,215,0,1), 0 0 30px rgba(255,215,0,0.4); }
+  0%, 100% { text-shadow: 0 0 10px rgba(255,215,0,0.7); }
+  50%       { text-shadow: 0 0 22px rgba(255,215,0,1), 0 0 38px rgba(255,215,0,0.5); }
 }
 
 .ranking-top-1 {
-  padding: 16px 18px;
-  background: linear-gradient(90deg, rgba(255,215,0,0.13) 0%, rgba(255,215,0,0.03) 60%, transparent 100%);
-  border-left: 3px solid var(--gold);
-  box-shadow: 0 0 18px rgba(255,215,0,0.12), inset 0 0 40px rgba(255,215,0,0.04);
+  padding: 18px 18px;
+  background: linear-gradient(90deg, rgba(255,215,0,0.22) 0%, rgba(255,215,0,0.07) 50%, rgba(255,215,0,0.02) 100%);
+  border: 1px solid rgba(255,215,0,0.30);
+  border-left: 4px solid var(--gold);
+  box-shadow: 0 0 28px rgba(255,215,0,0.22), 0 2px 8px rgba(0,0,0,0.4), inset 0 0 60px rgba(255,215,0,0.06);
 }
 .ranking-top-1 .ranking-pos { animation: pulse-gold 2.5s ease-in-out infinite; }
 
 .ranking-top-2 {
-  padding: 14px 18px;
-  background: linear-gradient(90deg, rgba(192,192,192,0.10) 0%, rgba(192,192,192,0.02) 60%, transparent 100%);
-  border-left: 3px solid #c0c0c0;
-  box-shadow: 0 0 12px rgba(192,192,192,0.10);
+  padding: 16px 18px;
+  background: linear-gradient(90deg, rgba(192,192,192,0.18) 0%, rgba(192,192,192,0.05) 50%, transparent 100%);
+  border: 1px solid rgba(192,192,192,0.25);
+  border-left: 4px solid #c0c0c0;
+  box-shadow: 0 0 20px rgba(192,192,192,0.18), 0 2px 8px rgba(0,0,0,0.4);
 }
 .ranking-top-3 {
-  padding: 14px 18px;
-  background: linear-gradient(90deg, rgba(205,133,63,0.10) 0%, rgba(205,133,63,0.02) 60%, transparent 100%);
-  border-left: 3px solid #cd853f;
-  box-shadow: 0 0 12px rgba(205,133,63,0.10);
+  padding: 16px 18px;
+  background: linear-gradient(90deg, rgba(205,133,63,0.18) 0%, rgba(205,133,63,0.05) 50%, transparent 100%);
+  border: 1px solid rgba(205,133,63,0.25);
+  border-left: 4px solid #cd853f;
+  box-shadow: 0 0 20px rgba(205,133,63,0.18), 0 2px 8px rgba(0,0,0,0.4);
 }
 
-.ranking-top-1 .game-name { color: var(--gold); font-size: 16px; }
-.ranking-top-2 .game-name { color: #c0c0c0; font-size: 15px; }
-.ranking-top-3 .game-name { color: #cd853f; font-size: 15px; }
+.ranking-top-1 .game-name { color: #ffe066; font-size: 16px; text-shadow: 0 0 12px rgba(255,215,0,0.4); }
+.ranking-top-2 .game-name { color: #d8d8d8; font-size: 15px; }
+.ranking-top-3 .game-name { color: #e0a060; font-size: 15px; }
 
 .ranking-name { flex: 1; min-width: 0; }
-.ranking-name .game-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.ranking-name .tag-line  { font-size: 11px; color: var(--text-muted); }
+.ranking-name .game-name { font-size: 14px; font-weight: 600; color: #dce8f5; }
+.ranking-name .tag-line  { font-size: 11px; color: #5a6a80; }
 
 .ranking-rank {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #c4d4e8;
   white-space: nowrap;
 }
 
-.ranking-top-1 .ranking-rank,
-.ranking-top-2 .ranking-rank,
-.ranking-top-3 .ranking-rank { font-size: 14px; }
+.ranking-top-1 .ranking-rank { font-size: 14px; color: #ffe066; }
+.ranking-top-2 .ranking-rank { font-size: 14px; color: #d8d8d8; }
+.ranking-top-3 .ranking-rank { font-size: 14px; color: #e0a060; }
 
 .pos-change {
   font-size: 12px;
@@ -1058,10 +1062,23 @@ main {
   text-align: center;
 }
 
-.gamba-user-id {
+.gamba-user-name {
   flex: 1;
   color: var(--text-secondary);
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gamba-summoner {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(200,155,60,0.12);
+  border: 1px solid rgba(200,155,60,0.25);
+  border-radius: 4px;
+  padding: 1px 6px;
 }
 
 .gamba-pts {

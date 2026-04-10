@@ -19,6 +19,14 @@ const commands = [
     description: 'Check your Gamba points balance'
   },
   {
+    name: 'connect',
+    description: 'Link your Discord account to your League summoner for Gamba points',
+    options: [
+      { name: 'summoner', description: 'Your summoner name (game name)', type: 3, required: true },
+      { name: 'tag', description: 'Your tag line (e.g. NA1)', type: 3, required: true }
+    ]
+  },
+  {
     name: 'bet',
     description: 'Gamba betting commands',
     options: [

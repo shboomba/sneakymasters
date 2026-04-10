@@ -8,10 +8,11 @@ const KV_URL        = process.env.KV_REST_API_URL;
 const KV_TOKEN      = process.env.KV_REST_API_TOKEN;
 const VERCEL_URL    = process.env.VERCEL_API_URL;
 
-const POINTS_KEY    = 'rtm_gamba_points';
-const BETS_KEY      = 'rtm_gamba_bets';
-const USERNAMES_KEY = 'rtm_gamba_usernames';
-const STARTING_PTS  = 1000;
+const POINTS_KEY      = 'rtm_gamba_points';
+const BETS_KEY        = 'rtm_gamba_bets';
+const USERNAMES_KEY   = 'rtm_gamba_usernames';
+const CONNECTIONS_KEY = 'rtm_gamba_connections'; // discordUserId -> "gameName#tagLine"
+const STARTING_PTS    = 1000;
 
 /* ─── Signature Verification ─────────────────────────────────────────────────── */
 function hexToBytes(hex) {
@@ -129,6 +130,29 @@ async function cmdPoints(userId, username) {
     description: `💰 **${username}** has **${pts.toLocaleString()} Gamba points**.`,
     color: 0xc89b3c
   }]);
+}
+
+async function cmdConnect(userId, username, gameName, tagLine) {
+  if (!gameName || !tagLine) return ephemeral('Provide both `summoner` and `tag`.');
+  const summonerKey = `${gameName.toLowerCase()}#${tagLine.toLowerCase()}`;
+
+  // Verify the summoner exists
+  let valid = false;
+  try {
+    const r = await fetch(`${VERCEL_URL}/api/summoner?gameName=${encodeURIComponent(gameName)}&tagLine=${encodeURIComponent(tagLine)}`);
+    valid = r.ok;
+  } catch {}
+  if (!valid) return ephemeral(`Could not find summoner **${gameName}#${tagLine}**. Check the name and tag and try again.`);
+
+  const [connections] = await Promise.all([
+    kvGet(CONNECTIONS_KEY),
+    trackUsername(userId, username)
+  ]);
+  const conn = connections || {};
+  conn[userId] = summonerKey;
+  await kvSet(CONNECTIONS_KEY, conn);
+
+  return ephemeral(`✅ Linked your Discord account to **${gameName}#${tagLine}**. Your Gamba points will now show your summoner name on the website.`);
 }
 
 async function cmdBetCreate(userId, username, title, description) {
@@ -283,6 +307,10 @@ export default async function handler(req, res) {
 
       } else if (name === 'points') {
         response = await cmdPoints(userId, username);
+
+      } else if (name === 'connect') {
+        const sopt = key => (options || []).find(o => o.name === key)?.value;
+        response = await cmdConnect(userId, username, sopt('summoner'), sopt('tag'));
 
       } else if (name === 'bet') {
         const sub = options[0];

@@ -431,12 +431,12 @@ async function refreshAll() {
       if (cached?.streak != null) state.streak = cached.streak;
       if (cached?.matchHistory?.length) state.matchHistory = cached.matchHistory;
     }
+    // Re-render after each player so cards update as soon as their data arrives
+    renderLeaderboard();
+    if (activeTab === 'rankings') renderRankingsTab();
+    if (activeTab === 'numberline') renderNumberLineTab();
+    if (activeTab === 'gamba') renderGambaTab();
   }
-
-  renderLeaderboard();
-  if (activeTab === 'rankings') renderRankingsTab();
-  if (activeTab === 'numberline') renderNumberLineTab();
-  if (activeTab === 'gamba') renderGambaTab();
 
   refreshBtn.disabled = false;
   refreshBtn.textContent = 'Refresh All';
@@ -1190,12 +1190,17 @@ async function renderGambaTab() {
   // Points leaderboard
   const pointsHtml = points.length === 0
     ? `<p class="gamba-empty">No one has used /points yet.</p>`
-    : points.map((p, i) => `
+    : points.map((p, i) => {
+        const summonerBadge = p.summoner
+          ? `<span class="gamba-summoner">${escHtml(p.summoner)}</span>`
+          : '';
+        return `
         <div class="gamba-points-row${i < 3 ? ` gamba-top-${i + 1}` : ''}">
           <span class="gamba-rank">${i < 3 ? medals[i] : `#${i + 1}`}</span>
-          <span class="gamba-user-id">${escHtml(p.name)}</span>
+          <span class="gamba-user-name">${escHtml(p.name)}${summonerBadge}</span>
           <span class="gamba-pts">${p.pts.toLocaleString()} pts</span>
-        </div>`).join('');
+        </div>`;
+      }).join('');
 
   // Bet history
   const betsHtml = bets.length === 0
