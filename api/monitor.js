@@ -30,20 +30,33 @@ async function kvGet() {
 }
 
 async function kvSet(state) {
-  await fetch(KV_URL, {
+  const r = await fetch(KV_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(['SET', STATE_KEY, JSON.stringify(state)])
   });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    console.error(`[monitor] KV SET failed: ${r.status} — ${body}`);
+  }
 }
 
 async function postWebhook(embed) {
-  if (!WEBHOOK) return;
-  await fetch(WEBHOOK, {
+  if (!WEBHOOK) {
+    console.error('[monitor] DISCORD_WEBHOOK_URL is not set — cannot post notification');
+    return false;
+  }
+  const r = await fetch(WEBHOOK, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ embeds: [embed] })
   });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    console.error(`[monitor] Webhook POST failed: ${r.status} — ${body}`);
+    return false;
+  }
+  return true;
 }
 
 function pKey(gameName, tagLine) {
@@ -81,8 +94,12 @@ export default async function handler(req, res) {
     ));
 
     const current = results.filter(Boolean).sort((a, b) => b.lp - a.lp);
+    if (current.length === 0) {
+      console.error('[monitor] All summoner lookups failed — Riot API key may be expired or rate-limited');
+    }
     const prev = await kvGet();
     const isFirstRun = Object.keys(prev).length === 0;
+    console.log(`[monitor] checked=${current.length} prevKeys=${Object.keys(prev).length} firstRun=${isFirstRun} webhook=${!!WEBHOOK}`);
     const notifications = [];
 
     if (!isFirstRun) {

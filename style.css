@@ -304,6 +304,15 @@ main {
 .card-note-input::placeholder { color: var(--text-muted); font-size: 11px; }
 
 /* ─── Match history dots ─────────────────────────────────────────────────────── */
+.card-dots-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.card-dots-row .match-dots {
+  flex: 1;
+  margin-bottom: 0;
+}
 .match-dots {
   display: flex;
   flex-wrap: wrap;

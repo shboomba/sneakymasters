@@ -594,6 +594,7 @@ function renderCard(player, position, draggable = false) {
   const dotsHtml = matchDots.length > 0
     ? `<div class="match-dots">${matchDots.map(w => `<span class="match-dot ${w ? 'win' : 'loss'}"></span>`).join('')}</div>`
     : '';
+  const opggName = `${encodeURIComponent(player.gameName)}-${encodeURIComponent(player.tagLine)}`;
 
   return `
     <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}${streakClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
@@ -619,7 +620,10 @@ function renderCard(player, position, draggable = false) {
           </div>
           ${champHtml}
           <div class="card-record">${recordHtml}</div>
-          ${dotsHtml}
+          <div class="card-dots-row">
+            ${dotsHtml}
+            <a href="https://www.op.gg/summoners/na/${opggName}" target="_blank" rel="noopener" class="btn-opgg">op.gg</a>
+          </div>
           ${mastersBanner}
           ${streakBanner}
           ${errorMsg}
