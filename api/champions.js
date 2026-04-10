@@ -23,8 +23,7 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   try {
-    // Fetch last 5 ranked solo matches (reduced from 20 to stay under personal key rate limits)
-    const matchListUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=5`;
+    const matchListUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=20`;
     const matchListRes = await riotFetch(matchListUrl, RIOT_KEY);
 
     // 403 = match-v5 not approved on this key — degrade silently
@@ -40,43 +39,47 @@ export default async function handler(req, res) {
       return res.status(200).json({ champions: [] });
     }
 
-    const champCounts = {};
-    const roleCounts = {};
-    let streakType = null, streakCount = 0, streakDone = false;
-
-    for (const matchId of matchIds) {
+    // Fetch all match details in parallel
+    const matchResults = await Promise.all(matchIds.map(async matchId => {
       try {
         const matchRes = await riotFetch(
           `https://americas.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
           RIOT_KEY
         );
-        if (!matchRes.ok) continue;
-
+        if (!matchRes.ok) return null;
         const match = await matchRes.json();
         const participant = match?.info?.participants?.find(p => p.puuid === puuid);
-        if (!participant) continue;
-
-        if (participant.championName) {
-          champCounts[participant.championName] = (champCounts[participant.championName] || 0) + 1;
-        }
-
-        if (participant.teamPosition) {
-          roleCounts[participant.teamPosition] = (roleCounts[participant.teamPosition] || 0) + 1;
-        }
-
-        if (!streakDone) {
-          const won = participant.win;
-          if (streakType === null) {
-            streakType = won ? 'win' : 'loss';
-            streakCount = 1;
-          } else if ((won && streakType === 'win') || (!won && streakType === 'loss')) {
-            streakCount++;
-          } else {
-            streakDone = true;
-          }
-        }
+        return participant ? { participant, matchId } : null;
       } catch {
-        continue;
+        return null;
+      }
+    }));
+
+    // matchIds are newest-first; preserve order for streak calculation
+    const champCounts = {};
+    const roleCounts = {};
+    let streakType = null, streakCount = 0, streakDone = false;
+
+    for (const result of matchResults) {
+      if (!result) continue;
+      const { participant } = result;
+
+      if (participant.championName) {
+        champCounts[participant.championName] = (champCounts[participant.championName] || 0) + 1;
+      }
+      if (participant.teamPosition) {
+        roleCounts[participant.teamPosition] = (roleCounts[participant.teamPosition] || 0) + 1;
+      }
+      if (!streakDone) {
+        const won = participant.win;
+        if (streakType === null) {
+          streakType = won ? 'win' : 'loss';
+          streakCount = 1;
+        } else if ((won && streakType === 'win') || (!won && streakType === 'loss')) {
+          streakCount++;
+        } else {
+          streakDone = true;
+        }
       }
     }
 
