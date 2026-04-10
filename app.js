@@ -1,12 +1,11 @@
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
-const STARRED_KEY     = 'rtm_starred';
-const POS_HISTORY_KEY = 'rtm_pos_history';
-const CHAMPIONS_KEY   = 'rtm_champions';
-const NOTES_KEY       = 'rtm_notes';
+const STARRED_KEY      = 'rtm_starred';
+const POS_BASELINE_KEY = 'rtm_pos_baseline';
+const CHAMPIONS_KEY    = 'rtm_champions';
+const NOTES_KEY        = 'rtm_notes';
 
-const LP_HISTORY_MAX     = 200;
-const CHAMPION_TTL       = 60 * 60 * 1000; // 1 hour
-const POS_HISTORY_MAX_AGE = 35 * 24 * 60 * 60 * 1000; // 35 days
+const LP_HISTORY_MAX = 200;
+const CHAMPION_TTL   = 60 * 60 * 1000; // 1 hour
 
 const MASTERS_THRESHOLD = 2800;
 
@@ -178,49 +177,54 @@ function getPlayerLPHistory(gameName, tagLine) {
   return lpHistoryCache[playerKey(gameName, tagLine)] || [];
 }
 
-/* ─── LocalStorage: Position History ────────────────────────────────────────── */
-function loadPosHistory() {
-  try { return JSON.parse(localStorage.getItem(POS_HISTORY_KEY)) || {}; }
+/* ─── LocalStorage: Position Baseline ───────────────────────────────────────── */
+// Stores one baseline position per player per week.
+// Resets automatically when a new week (Monday) begins.
+
+function getWeekStartTs() {
+  const now = new Date();
+  const daysSinceMonday = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - daysSinceMonday);
+  return d.getTime();
+}
+
+function loadPosBaseline() {
+  try { return JSON.parse(localStorage.getItem(POS_BASELINE_KEY)) || {}; }
   catch { return {}; }
 }
 
-function savePosHistory(h) {
-  localStorage.setItem(POS_HISTORY_KEY, JSON.stringify(h));
+function savePosBaseline(b) {
+  localStorage.setItem(POS_BASELINE_KEY, JSON.stringify(b));
 }
 
 function recordPositionSnapshots(sortedPlayers) {
-  const h = loadPosHistory();
-  const now = Date.now();
-  const cutoff = now - POS_HISTORY_MAX_AGE;
-  sortedPlayers.forEach((p, i) => {
-    if (p.loading || p.error) return;
+  const baseline = loadPosBaseline();
+  const weekStartTs = getWeekStartTs();
+  let dirty = false;
+
+  for (let i = 0; i < sortedPlayers.length; i++) {
+    const p = sortedPlayers[i];
+    if (p.loading || p.error) continue;
     const key = playerKey(p.gameName, p.tagLine);
-    if (!h[key]) h[key] = [];
-    h[key].push({ ts: now, position: i + 1 });
-    h[key] = h[key].filter(e => e.ts > cutoff);
-  });
-  savePosHistory(h);
+    // Set baseline once per week — never overwrite within the same week
+    if (!baseline[key] || baseline[key].weekStart < weekStartTs) {
+      baseline[key] = { position: i + 1, weekStart: weekStartTs };
+      dirty = true;
+    }
+  }
+
+  if (dirty) savePosBaseline(baseline);
 }
 
 function getWeeklyPositionChange(gameName, tagLine, currentPosition) {
-  const h = loadPosHistory();
-  const entries = h[playerKey(gameName, tagLine)] || [];
-
-  // Monday midnight of the current week
-  const now = new Date();
-  const daysSinceMonday = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  const weekStart = new Date(now);
-  weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(weekStart.getDate() - daysSinceMonday);
-  const weekStartTs = weekStart.getTime();
-
-  // Baseline = most recent snapshot before this week; fall back to oldest available
-  const preWeekEntries = entries.filter(e => e.ts < weekStartTs);
-  const baseline = preWeekEntries.length > 0
-    ? preWeekEntries[preWeekEntries.length - 1]
-    : entries[0];
-  if (!baseline || baseline.position === currentPosition) return null;
-  return baseline.position - currentPosition; // positive = moved up
+  const baseline = loadPosBaseline();
+  const entry = baseline[playerKey(gameName, tagLine)];
+  if (!entry) return null;
+  if (entry.weekStart < getWeekStartTs()) return null; // stale — new week, not yet reset
+  const change = entry.position - currentPosition;
+  return change === 0 ? null : change;
 }
 
 /* ─── LocalStorage: Champion Cache ──────────────────────────────────────────── */
@@ -592,8 +596,8 @@ function renderCard(player, position, draggable = false) {
             ${player.roles && player.roles.length > 0
               ? `<div class="card-roles">${player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')}</div>`
               : ''}
-            <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
             <button class="btn-edit-note" data-player-key="${pKey}" title="Edit note">&#9998;</button>
+            <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
             <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
           </div>
           <div class="card-rank-info">
@@ -615,7 +619,8 @@ function renderCard(player, position, draggable = false) {
         </div>
         <div class="card-back">
           <span class="card-back-name">${escHtml(player.gameName)}</span>
-          <textarea class="card-note-input" data-player-key="${pKey}" placeholder="Write your notes here...">${escHtml(note)}</textarea>
+          <div class="note-display">${note ? escHtml(note) : `<span class="note-placeholder">Double-click to add notes...</span>`}</div>
+          <textarea class="card-note-input hidden" data-player-key="${pKey}" placeholder="Write your notes here...">${escHtml(note)}</textarea>
         </div>
       </div>
     </div>`;
@@ -1028,21 +1033,44 @@ function setupEventListeners() {
       return;
     }
 
-    // Edit button → flip to back
+    // Edit button → flip to back (shows note display, not edit mode)
     const editBtn = e.target.closest('.btn-edit-note');
     if (editBtn) {
-      const card = editBtn.closest('.player-card');
-      card.classList.add('is-flipped');
-      setTimeout(() => card.querySelector('.card-note-input')?.focus(), 460);
+      editBtn.closest('.player-card').classList.add('is-flipped');
       return;
     }
 
-    // Click card-back outside the textarea → flip back to front
+    // Click card-back outside note areas → flip back to front
     const cardBack = e.target.closest('.card-back');
-    if (cardBack && !e.target.closest('.card-note-input')) {
+    if (cardBack && !e.target.closest('.note-display, .card-note-input')) {
       cardBack.closest('.player-card').classList.remove('is-flipped');
       return;
     }
+  });
+
+  // Double-click note display → enter edit mode
+  document.getElementById('leaderboard').addEventListener('dblclick', e => {
+    const display = e.target.closest('.note-display');
+    if (!display) return;
+    const back = display.closest('.card-back');
+    display.classList.add('hidden');
+    const ta = back.querySelector('.card-note-input');
+    ta.classList.remove('hidden');
+    ta.focus();
+  });
+
+  // Save note + exit edit mode on blur
+  document.getElementById('leaderboard').addEventListener('focusout', e => {
+    const textarea = e.target.closest('.card-note-input');
+    if (!textarea) return;
+    saveNote(textarea.dataset.playerKey, textarea.value);
+    const back = textarea.closest('.card-back');
+    const display = back.querySelector('.note-display');
+    display.innerHTML = textarea.value
+      ? escHtml(textarea.value)
+      : `<span class="note-placeholder">Double-click to add notes...</span>`;
+    textarea.classList.add('hidden');
+    display.classList.remove('hidden');
   });
 
   // Auto-save note on input
@@ -1197,6 +1225,9 @@ async function renderGambaTab() {
       }).join('');
 
   container.innerHTML = `
+    <div class="gamba-toolbar">
+      <button class="btn btn-secondary" id="btn-gamba-refresh">Refresh</button>
+    </div>
     <div class="gamba-section">
       <h2 class="gamba-section-title">Points Leaderboard</h2>
       <p class="gamba-section-sub">Starting balance: ${startingPts.toLocaleString()} pts &nbsp;·&nbsp; Earn more by winning bets</p>
@@ -1206,6 +1237,8 @@ async function renderGambaTab() {
       <h2 class="gamba-section-title">Bet History</h2>
       <div class="gamba-bets-list">${betsHtml}</div>
     </div>`;
+
+  document.getElementById('btn-gamba-refresh')?.addEventListener('click', renderGambaTab);
 }
 
 /* ─── Init ───────────────────────────────────────────────────────────────────── */
