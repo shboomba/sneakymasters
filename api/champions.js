@@ -55,9 +55,10 @@ export default async function handler(req, res) {
       }
     }));
 
-    // matchIds are newest-first; preserve order for streak calculation
+    // matchIds are newest-first; preserve order for streak + match history
     const champCounts = {};
     const roleCounts = {};
+    const matchHistory = []; // true=win, false=loss, newest first
     let streakType = null, streakCount = 0, streakDone = false;
 
     for (const result of matchResults) {
@@ -70,6 +71,7 @@ export default async function handler(req, res) {
       if (participant.teamPosition) {
         roleCounts[participant.teamPosition] = (roleCounts[participant.teamPosition] || 0) + 1;
       }
+      matchHistory.push(participant.win);
       if (!streakDone) {
         const won = participant.win;
         if (streakType === null) {
@@ -99,7 +101,7 @@ export default async function handler(req, res) {
 
     const streak = streakType ? { type: streakType, count: streakCount } : null;
 
-    return res.status(200).json({ champions: top3, streak, roles });
+    return res.status(200).json({ champions: top3, streak, roles, matchHistory });
 
   } catch {
     return res.status(200).json({ champions: [] });

@@ -214,10 +214,12 @@ function getWeeklyPositionChange(gameName, tagLine, currentPosition) {
   weekStart.setDate(weekStart.getDate() - daysSinceMonday);
   const weekStartTs = weekStart.getTime();
 
-  // Baseline = most recent snapshot recorded before this week started
+  // Baseline = most recent snapshot before this week; fall back to oldest available
   const preWeekEntries = entries.filter(e => e.ts < weekStartTs);
-  if (preWeekEntries.length === 0) return null;
-  const baseline = preWeekEntries[preWeekEntries.length - 1];
+  const baseline = preWeekEntries.length > 0
+    ? preWeekEntries[preWeekEntries.length - 1]
+    : entries[0];
+  if (!baseline || baseline.position === currentPosition) return null;
   return baseline.position - currentPosition; // positive = moved up
 }
 
@@ -238,10 +240,10 @@ function getCachedChampions(gameName, tagLine, currentLP) {
   if (Date.now() - entry.ts > CHAMPION_TTL) return null;
   // Invalidate if LP changed since cache was written — means a game was played
   if (currentLP !== undefined && entry.lp !== currentLP) return null;
-  return { champions: entry.champions || [], streak: entry.streak || null, roles: entry.roles || [] };
+  return { champions: entry.champions || [], streak: entry.streak || null, roles: entry.roles || [], matchHistory: entry.matchHistory || [] };
 }
 
-function cacheChampions(gameName, tagLine, champions, streak, roles, lp) {
+function cacheChampions(gameName, tagLine, champions, streak, roles, lp, matchHistory) {
   const c = loadChampionCache();
   const prev = c[playerKey(gameName, tagLine)];
   c[playerKey(gameName, tagLine)] = {
@@ -250,6 +252,7 @@ function cacheChampions(gameName, tagLine, champions, streak, roles, lp) {
     champions: champions?.length ? champions : (prev?.champions || []),
     roles: roles?.length ? roles : (prev?.roles || []),
     streak: streak || null,
+    matchHistory: matchHistory?.length ? matchHistory : (prev?.matchHistory || []),
   };
   saveChampionCache(c);
 }
@@ -275,16 +278,11 @@ function championIconUrl(championName, version) {
 async function fetchChampions(puuid) {
   try {
     const res = await fetch(`/api/champions?puuid=${encodeURIComponent(puuid)}`);
-    if (!res.ok) {
-      console.warn('[roles] /api/champions returned', res.status, 'for puuid', puuid);
-      return { champions: [], streak: null, roles: [] };
-    }
+    if (!res.ok) return { champions: [], streak: null, roles: [], matchHistory: [] };
     const data = await res.json();
-    console.log('[roles] /api/champions response:', data);
-    return { champions: data.champions || [], streak: data.streak || null, roles: data.roles || [] };
-  } catch (err) {
-    console.warn('[roles] fetchChampions error:', err);
-    return { champions: [], streak: null, roles: [] };
+    return { champions: data.champions || [], streak: data.streak || null, roles: data.roles || [], matchHistory: data.matchHistory || [] };
+  } catch {
+    return { champions: [], streak: null, roles: [], matchHistory: [] };
   }
 }
 
@@ -337,6 +335,7 @@ function upsertPlayer(data) {
         champions: data.champions?.length ? data.champions : (existing.champions || []),
         roles: data.roles?.length ? data.roles : (existing.roles || []),
         streak: data.streak ?? existing.streak ?? null,
+        matchHistory: data.matchHistory?.length ? data.matchHistory : (existing.matchHistory || []),
       };
     }
   }
@@ -406,13 +405,14 @@ async function refreshAll() {
     let cached = getCachedChampions(p.gameName, p.tagLine, p.totalLP);
     if (cached === null && p.puuid) {
       cached = await fetchChampions(p.puuid);
-      cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak, cached.roles, p.totalLP);
+      cacheChampions(p.gameName, p.tagLine, cached.champions, cached.streak, cached.roles, p.totalLP, cached.matchHistory);
     }
     const state = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
     if (state) {
       if (cached?.champions?.length) state.champions = cached.champions;
       if (cached?.roles?.length) state.roles = cached.roles;
       if (cached?.streak != null) state.streak = cached.streak;
+      if (cached?.matchHistory?.length) state.matchHistory = cached.matchHistory;
     }
   }
 
@@ -573,9 +573,10 @@ function renderCard(player, position, draggable = false) {
 
   const note = getNote(pKey);
 
-  const noteHtml = note
-    ? escHtml(note)
-    : `<span class="note-placeholder">Click to add notes...</span>`;
+  const matchDots = (player.matchHistory || []).slice(0, 15);
+  const dotsHtml = matchDots.length > 0
+    ? `<div class="match-dots">${matchDots.map(w => `<span class="match-dot ${w ? 'win' : 'loss'}"></span>`).join('')}</div>`
+    : '';
 
   return `
     <div class="player-card ${rankClass}${starred ? ' card-starred' : ''}${draggable ? ' draggable-card' : ''}${streakClass}" data-tier="${tier}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" data-player-key="${pKey}"${draggable ? ' draggable="true"' : ''}>
@@ -592,6 +593,7 @@ function renderCard(player, position, draggable = false) {
               ? `<div class="card-roles">${player.roles.map((r, i) => (i > 0 ? `<span class="role-sep">/</span>` : '') + `<img class="card-role-icon" src="${roleIconUrl(r)}" alt="${ROLE_DISPLAY[r] || r}" title="${ROLE_DISPLAY[r] || r}">`).join('')}</div>`
               : ''}
             <button class="btn-star ${starred ? 'starred' : ''}" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="${starred ? 'Unpin' : 'Pin to top'}">&#9733;</button>
+            <button class="btn-edit-note" data-player-key="${pKey}" title="Edit note">&#9998;</button>
             <button class="btn-remove" data-game-name="${escHtml(player.gameName)}" data-tag-line="${escHtml(player.tagLine)}" title="Remove player">&#10005;</button>
           </div>
           <div class="card-rank-info">
@@ -600,6 +602,7 @@ function renderCard(player, position, draggable = false) {
           </div>
           ${champHtml}
           <div class="card-record">${recordHtml}</div>
+          ${dotsHtml}
           ${mastersBanner}
           ${streakBanner}
           ${errorMsg}
@@ -612,8 +615,7 @@ function renderCard(player, position, draggable = false) {
         </div>
         <div class="card-back">
           <span class="card-back-name">${escHtml(player.gameName)}</span>
-          <div class="note-display">${noteHtml}</div>
-          <textarea class="card-note-input hidden" data-player-key="${pKey}" rows="4">${escHtml(note)}</textarea>
+          <textarea class="card-note-input" data-player-key="${pKey}" placeholder="Write your notes here...">${escHtml(note)}</textarea>
         </div>
       </div>
     </div>`;
@@ -641,7 +643,7 @@ function renderGraphPanel(player) {
     if (val === null) return `<span class="neutral">—</span>`;
     if (val > 0)  return `<span class="positive">+${val} LP</span>`;
     if (val < 0)  return `<span class="negative">${val} LP</span>`;
-    return `<span class="neutral">±0 LP</span>`;
+    return `<span class="neutral">+0 LP</span>`;
   }
 
   const statsHtml = `
@@ -915,11 +917,12 @@ async function addPlayer(riotId) {
   let cached = getCachedChampions(data.gameName, data.tagLine, data.totalLP);
   if (cached === null && data.puuid) {
     cached = await fetchChampions(data.puuid);
-    cacheChampions(data.gameName, data.tagLine, cached.champions, cached.streak, cached.roles, data.totalLP);
+    cacheChampions(data.gameName, data.tagLine, cached.champions, cached.streak, cached.roles, data.totalLP, cached.matchHistory);
   }
   data.champions = cached?.champions || [];
   data.streak = cached?.streak || null;
   data.roles = cached?.roles || [];
+  data.matchHistory = cached?.matchHistory || [];
 
   upsertPlayer(data);
   recordLPSnapshot(data.gameName, data.tagLine, data.totalLP);
@@ -1025,47 +1028,24 @@ function setupEventListeners() {
       return;
     }
 
-    // Click card front (not a button/link/graph area) → flip to back
-    const cardFront = e.target.closest('.card-front');
-    if (cardFront && !e.target.closest('button, a, input, select, textarea, .graph-panel')) {
-      cardFront.closest('.player-card').classList.add('is-flipped');
+    // Edit button → flip to back
+    const editBtn = e.target.closest('.btn-edit-note');
+    if (editBtn) {
+      const card = editBtn.closest('.player-card');
+      card.classList.add('is-flipped');
+      setTimeout(() => card.querySelector('.card-note-input')?.focus(), 460);
       return;
     }
 
-    // Click note-display → switch to edit mode
-    const noteDisplay = e.target.closest('.note-display');
-    if (noteDisplay) {
-      const back = noteDisplay.closest('.card-back');
-      noteDisplay.classList.add('hidden');
-      const ta = back.querySelector('.card-note-input');
-      ta.classList.remove('hidden');
-      ta.focus();
-      return;
-    }
-
-    // Click card-back (not note area) → flip back to front
+    // Click card-back outside the textarea → flip back to front
     const cardBack = e.target.closest('.card-back');
-    if (cardBack && !e.target.closest('.note-display, .card-note-input')) {
+    if (cardBack && !e.target.closest('.card-note-input')) {
       cardBack.closest('.player-card').classList.remove('is-flipped');
       return;
     }
   });
 
-  // Auto-save + switch back to display when textarea loses focus
-  document.getElementById('leaderboard').addEventListener('focusout', e => {
-    const textarea = e.target.closest('.card-note-input');
-    if (!textarea) return;
-    saveNote(textarea.dataset.playerKey, textarea.value);
-    const back = textarea.closest('.card-back');
-    const display = back.querySelector('.note-display');
-    display.innerHTML = textarea.value
-      ? escHtml(textarea.value)
-      : `<span class="note-placeholder">Click to add notes...</span>`;
-    textarea.classList.add('hidden');
-    display.classList.remove('hidden');
-  });
-
-  // Auto-save card notes on input
+  // Auto-save note on input
   document.getElementById('leaderboard').addEventListener('input', e => {
     const textarea = e.target.closest('.card-note-input');
     if (textarea) saveNote(textarea.dataset.playerKey, textarea.value);

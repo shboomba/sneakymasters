@@ -200,10 +200,17 @@ main {
   transition: background var(--transition), box-shadow var(--transition);
 }
 
-.player-card:not(.is-flipped):hover { background: var(--bg-card-hover); cursor: pointer; }
+.player-card:hover { background: var(--bg-card-hover); }
 
 .player-card.rank-first {
-  box-shadow: 0 0 20px var(--tier-glow, transparent), 0 0 0 1px var(--tier-color, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tier-color, #ffd700) 10%, var(--bg-card)) 0%, var(--bg-card) 55%);
+  box-shadow: 0 0 28px var(--tier-glow, transparent), 0 0 0 1px var(--tier-color, transparent);
+}
+.player-card.rank-second {
+  background: linear-gradient(135deg, rgba(192,192,192,0.09) 0%, var(--bg-card) 55%);
+}
+.player-card.rank-third {
+  background: linear-gradient(135deg, rgba(205,133,63,0.09) 0%, var(--bg-card) 55%);
 }
 
 /* ─── Card Flip ─────────────────────────────────────────────────────────────── */
@@ -240,40 +247,23 @@ main {
   overflow: hidden;
 }
 
-/* ─── Note display (flashcard view) ─────────────────────────────────────────── */
-.note-display {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: linear-gradient(160deg, #0d1525 0%, var(--bg-primary) 100%);
-  font-family: 'Cinzel', serif;
-  font-size: 12px;
-  color: var(--text-primary);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  cursor: text;
-  min-height: 80px;
-  position: relative;
-  transition: border-color var(--transition);
+/* ─── Edit note button ───────────────────────────────────────────────────────── */
+.btn-edit-note {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 4px 5px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
+  flex-shrink: 0;
 }
-.note-display:hover { border-color: var(--gold-dark); }
-.note-display::before {
-  content: '';
-  position: absolute;
-  inset: 4px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  opacity: 0.4;
-  pointer-events: none;
-}
+.player-card:hover .btn-edit-note { opacity: 0.5; }
+.player-card:hover .btn-edit-note:hover { opacity: 1; color: var(--gold); }
 
-.note-placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 11px; }
-
+/* ─── Card back — flashcard note ────────────────────────────────────────────── */
 .card-back-name {
   font-size: 13px;
   font-weight: 600;
@@ -284,21 +274,37 @@ main {
 }
 
 .card-note-input {
-  background: var(--bg-primary);
-  border: 1px solid var(--gold-dark);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  line-height: 1.5;
-  padding: 8px 10px;
-  resize: vertical;
-  width: 100%;
   flex: 1;
+  background: linear-gradient(160deg, #0d1525 0%, var(--bg-primary) 100%);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 14px 16px;
+  resize: none;
+  width: 100%;
   transition: border-color var(--transition);
 }
-.card-note-input:focus { outline: none; border-color: var(--gold); }
-.card-note-input.hidden { display: none; }
+.card-note-input:focus { outline: none; border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(200,155,60,0.2); }
+.card-note-input::placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 11px; }
+
+/* ─── Match history dots ─────────────────────────────────────────────────────── */
+.match-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.match-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.match-dot.win  { background: #4a9eff; }
+.match-dot.loss { background: #e05252; }
 
 /* ─── Card Header ────────────────────────────────────────────────────────────── */
 .card-header {
