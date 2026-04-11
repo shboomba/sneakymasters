@@ -12,7 +12,7 @@ const POINTS_KEY      = 'rtm_gamba_points';
 const BETS_KEY        = 'rtm_gamba_bets';
 const USERNAMES_KEY   = 'rtm_gamba_usernames';
 const CONNECTIONS_KEY = 'rtm_gamba_connections'; // discordUserId -> "gameName#tagLine"
-const STARTING_PTS    = 1000;
+const STARTING_PTS    = 20000;
 
 /* ─── Signature Verification ─────────────────────────────────────────────────── */
 function hexToBytes(hex) {

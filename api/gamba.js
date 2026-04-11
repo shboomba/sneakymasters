@@ -6,7 +6,7 @@ const POINTS_KEY      = 'rtm_gamba_points';
 const BETS_KEY        = 'rtm_gamba_bets';
 const USERNAMES_KEY   = 'rtm_gamba_usernames';
 const CONNECTIONS_KEY = 'rtm_gamba_connections';
-const STARTING_PTS    = 1000;
+const STARTING_PTS    = 20000;
 
 async function kvGet(key) {
   const r = await fetch(`${KV_URL}/get/${key}`, {

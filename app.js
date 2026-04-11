@@ -1257,7 +1257,6 @@ async function renderGambaTab() {
         <div class="gamba-legend">
           <div class="gamba-legend-header">
             <span class="gamba-legend-title">Points</span>
-            <span class="gamba-legend-sub">${startingPts.toLocaleString()} to start</span>
           </div>
           <div class="gamba-legend-rows">${legendRows}</div>
         </div>

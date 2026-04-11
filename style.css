@@ -1099,36 +1099,38 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
   font-family: var(--font-body);
+  background: transparent;
 }
 .gamba-legend-row:last-child { border-bottom: none; }
 
-.gamba-legend-row.gamba-top-1 { background: linear-gradient(90deg, rgba(255,215,0,0.07) 0%, transparent 100%); }
-.gamba-legend-row.gamba-top-2 { background: linear-gradient(90deg, rgba(192,192,192,0.06) 0%, transparent 100%); }
-.gamba-legend-row.gamba-top-3 { background: linear-gradient(90deg, rgba(205,133,63,0.06) 0%, transparent 100%); }
+.gamba-legend-row.gamba-top-1 { background: rgba(255,215,0,0.1); }
+.gamba-legend-row.gamba-top-2 { background: rgba(192,192,192,0.08); }
+.gamba-legend-row.gamba-top-3 { background: rgba(205,133,63,0.08); }
 
 .gamba-legend-rank {
-  font-size: 0.85rem;
-  min-width: 22px;
+  font-size: 1rem;
+  min-width: 24px;
   text-align: center;
   flex-shrink: 0;
 }
 
 .gamba-legend-name {
   flex: 1;
-  font-size: 0.82rem;
-  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .gamba-legend-pts {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 
