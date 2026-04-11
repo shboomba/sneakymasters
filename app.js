@@ -1191,57 +1191,77 @@ async function renderGambaTab() {
   const { points, bets, startingPts } = data;
   const medals = ['🥇', '🥈', '🥉'];
 
-  // Points leaderboard
-  const pointsHtml = points.length === 0
-    ? `<p class="gamba-empty">No one has used /points yet.</p>`
+  // Points legend (sidebar)
+  const legendRows = points.length === 0
+    ? `<p class="gamba-empty">No players yet.<br>Use /connect in Discord.</p>`
     : points.map((p, i) => {
-        const summonerBadge = p.summoner
-          ? `<span class="gamba-summoner">${escHtml(p.summoner)}</span>`
-          : '';
+        const nameDisplay = p.summoner
+          ? escHtml(p.summoner.split('#')[0])
+          : escHtml(p.name);
         return `
-        <div class="gamba-points-row${i < 3 ? ` gamba-top-${i + 1}` : ''}">
-          <span class="gamba-rank">${i < 3 ? medals[i] : `#${i + 1}`}</span>
-          <span class="gamba-user-name">${escHtml(p.name)}${summonerBadge}</span>
-          <span class="gamba-pts">${p.pts.toLocaleString()} pts</span>
+        <div class="gamba-legend-row${i < 3 ? ` gamba-top-${i + 1}` : ''}">
+          <span class="gamba-legend-rank">${i < 3 ? medals[i] : `#${i + 1}`}</span>
+          <span class="gamba-legend-name" title="${escHtml(p.name)}">${nameDisplay}</span>
+          <span class="gamba-legend-pts">${p.pts.toLocaleString()}</span>
         </div>`;
       }).join('');
 
-  // Bet history
-  const betsHtml = bets.length === 0
-    ? `<p class="gamba-empty">No bets yet.</p>`
-    : bets.map(b => {
-        const statusClass = b.status === 'open' ? 'gamba-status-open' : 'gamba-status-resolved';
-        const statusLabel = b.status === 'open' ? 'Open' : `Resolved — winner: ${escHtml(b.winner || '?')}`;
-        const choiceLines = Object.entries(b.choices).map(([choice, entries]) => {
-          const total = entries.reduce((s, e) => s + e.amount, 0);
-          const names = entries.map(e => escHtml(e.username)).join(', ');
-          return `<div class="gamba-choice"><span class="gamba-choice-name">${escHtml(choice)}</span> — ${total} pts (${names})</div>`;
-        }).join('');
+  // Split bets into active vs history
+  const activeBets = bets.filter(b => b.status === 'open');
+  const pastBets   = bets.filter(b => b.status !== 'open');
 
-        return `
-          <div class="gamba-bet-card">
-            <div class="gamba-bet-header">
-              <span class="gamba-bet-title">${escHtml(b.title)}</span>
-              <span class="gamba-bet-status ${statusClass}">${statusLabel}</span>
-            </div>
-            ${b.description ? `<div class="gamba-bet-desc">${escHtml(b.description)}</div>` : ''}
-            <div class="gamba-bet-meta">ID: <code>${escHtml(b.id)}</code> · Pot: ${b.totalPot.toLocaleString()} pts · By ${escHtml(b.creatorName)}</div>
-            ${choiceLines ? `<div class="gamba-choices">${choiceLines}</div>` : ''}
-          </div>`;
-      }).join('');
+  function renderBetCard(b) {
+    const statusClass = b.status === 'open' ? 'gamba-status-open' : 'gamba-status-resolved';
+    const statusLabel = b.status === 'open' ? 'Open' : `Resolved — ${escHtml(b.winner || '?')}`;
+    const choiceLines = Object.entries(b.choices).map(([choice, entries]) => {
+      const total = entries.reduce((s, e) => s + e.amount, 0);
+      const names = entries.map(e => escHtml(e.username)).join(', ');
+      return `<div class="gamba-choice"><span class="gamba-choice-name">${escHtml(choice)}</span> — ${total} pts (${names})</div>`;
+    }).join('');
+    return `
+      <div class="gamba-bet-card">
+        <div class="gamba-bet-header">
+          <span class="gamba-bet-title">${escHtml(b.title)}</span>
+          <span class="gamba-bet-status ${statusClass}">${statusLabel}</span>
+        </div>
+        ${b.description ? `<div class="gamba-bet-desc">${escHtml(b.description)}</div>` : ''}
+        <div class="gamba-bet-meta">ID: <code>${escHtml(b.id)}</code> · Pot: ${b.totalPot.toLocaleString()} pts · By ${escHtml(b.creatorName)}</div>
+        ${choiceLines ? `<div class="gamba-choices">${choiceLines}</div>` : ''}
+      </div>`;
+  }
+
+  const activeBetsHtml = activeBets.length === 0
+    ? `<p class="gamba-empty">No active bets. Use /bet create in Discord.</p>`
+    : activeBets.map(renderBetCard).join('');
+
+  const pastBetsHtml = pastBets.length === 0
+    ? `<p class="gamba-empty">No resolved bets yet.</p>`
+    : pastBets.map(renderBetCard).join('');
 
   container.innerHTML = `
     <div class="gamba-toolbar">
       <button class="btn btn-secondary" id="btn-gamba-refresh">Refresh</button>
     </div>
-    <div class="gamba-section">
-      <h2 class="gamba-section-title">Points Leaderboard</h2>
-      <p class="gamba-section-sub">Starting balance: ${startingPts.toLocaleString()} pts &nbsp;·&nbsp; Earn more by winning bets</p>
-      <div class="gamba-points-list">${pointsHtml}</div>
-    </div>
-    <div class="gamba-section">
-      <h2 class="gamba-section-title">Bet History</h2>
-      <div class="gamba-bets-list">${betsHtml}</div>
+    <div class="gamba-layout">
+      <div class="gamba-main">
+        <div class="gamba-section">
+          <h2 class="gamba-section-title">Active Bets</h2>
+          <div class="gamba-bets-list">${activeBetsHtml}</div>
+        </div>
+        <div class="gamba-section">
+          <h2 class="gamba-section-title">Bet History</h2>
+          <div class="gamba-bets-list">${pastBetsHtml}</div>
+        </div>
+      </div>
+      <aside class="gamba-sidebar">
+        <div class="gamba-legend">
+          <div class="gamba-legend-header">
+            <span class="gamba-legend-title">Points</span>
+            <span class="gamba-legend-sub">${startingPts.toLocaleString()} to start</span>
+          </div>
+          <div class="gamba-legend-rows">${legendRows}</div>
+        </div>
+      </aside>
     </div>`;
 
   document.getElementById('btn-gamba-refresh')?.addEventListener('click', renderGambaTab);

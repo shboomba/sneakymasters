@@ -997,7 +997,7 @@ main {
 
 /* ─── Gamba Tab ──────────────────────────────────────────────────────────────── */
 #gamba-container {
-  max-width: 700px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 8px 0 40px;
 }
@@ -1015,6 +1015,25 @@ main {
   margin-bottom: 16px;
 }
 
+/* Two-column layout */
+.gamba-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.gamba-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.gamba-sidebar {
+  width: 210px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 20px;
+}
+
 .gamba-section {
   margin-bottom: 36px;
 }
@@ -1026,74 +1045,91 @@ main {
   color: var(--text-primary);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.gamba-section-sub {
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  color: var(--text-muted);
   margin-bottom: 12px;
 }
 
 .gamba-empty {
   color: var(--text-muted);
   font-family: var(--font-body);
-  font-size: 0.9rem;
-  padding: 12px 0;
+  font-size: 0.85rem;
+  padding: 10px 0;
+  line-height: 1.5;
 }
 
-/* Points leaderboard */
-.gamba-points-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.gamba-points-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+/* Points legend sidebar */
+.gamba-legend {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.gamba-legend-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+
+.gamba-legend-title {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.gamba-legend-sub {
   font-family: var(--font-body);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
-.gamba-points-row.gamba-top-1 { border-color: #ffd70066; background: linear-gradient(90deg, rgba(255,215,0,0.06) 0%, transparent 60%); }
-.gamba-points-row.gamba-top-2 { border-color: #c0c0c066; background: linear-gradient(90deg, rgba(192,192,192,0.06) 0%, transparent 60%); }
-.gamba-points-row.gamba-top-3 { border-color: #cd853f66; background: linear-gradient(90deg, rgba(205,133,63,0.06) 0%, transparent 60%); }
-
-.gamba-rank {
-  font-size: 1rem;
-  min-width: 28px;
-  text-align: center;
+.gamba-legend-rows {
+  display: flex;
+  flex-direction: column;
 }
 
-.gamba-user-name {
-  flex: 1;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
+.gamba-legend-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-family: var(--font-body);
+}
+.gamba-legend-row:last-child { border-bottom: none; }
+
+.gamba-legend-row.gamba-top-1 { background: linear-gradient(90deg, rgba(255,215,0,0.07) 0%, transparent 100%); }
+.gamba-legend-row.gamba-top-2 { background: linear-gradient(90deg, rgba(192,192,192,0.06) 0%, transparent 100%); }
+.gamba-legend-row.gamba-top-3 { background: linear-gradient(90deg, rgba(205,133,63,0.06) 0%, transparent 100%); }
+
+.gamba-legend-rank {
+  font-size: 0.85rem;
+  min-width: 22px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
-.gamba-summoner {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  background: rgba(200,155,60,0.12);
-  border: 1px solid rgba(200,155,60,0.25);
-  border-radius: 4px;
-  padding: 1px 6px;
+.gamba-legend-name {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.gamba-pts {
+.gamba-legend-pts {
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-primary);
-  font-size: 0.95rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Bet cards */
@@ -1172,6 +1208,11 @@ main {
   font-weight: 600;
   color: var(--text-primary);
   text-transform: capitalize;
+}
+
+@media (max-width: 640px) {
+  .gamba-layout { flex-direction: column; }
+  .gamba-sidebar { width: 100%; position: static; }
 }
 
 /* ─── Modal ──────────────────────────────────────────────────────────────────── */

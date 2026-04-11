@@ -35,13 +35,14 @@ export default async function handler(req, res) {
   const usernames   = rawUsernames   || {};
   const connections = rawConnections || {};
 
-  // Build points leaderboard (sorted descending), showing display names + linked summoner
-  const pointsList = Object.entries(points)
-    .map(([userId, pts]) => ({
+  // Build points leaderboard — include anyone who connected OR has points
+  const allUserIds = new Set([...Object.keys(points), ...Object.keys(connections)]);
+  const pointsList = Array.from(allUserIds)
+    .map(userId => ({
       userId,
       name: usernames[userId] || userId,
-      pts,
-      summoner: connections[userId] || null  // "gameName#tagLine" or null
+      pts: points[userId] ?? STARTING_PTS,
+      summoner: connections[userId] || null
     }))
     .sort((a, b) => b.pts - a.pts);
 
