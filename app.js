@@ -1239,9 +1239,6 @@ async function renderGambaTab() {
     : pastBets.map(renderBetCard).join('');
 
   container.innerHTML = `
-    <div class="gamba-toolbar">
-      <button class="btn btn-secondary" id="btn-gamba-refresh">Refresh</button>
-    </div>
     <div class="gamba-layout">
       <div class="gamba-main">
         <div class="gamba-section">
@@ -1263,7 +1260,6 @@ async function renderGambaTab() {
       </aside>
     </div>`;
 
-  document.getElementById('btn-gamba-refresh')?.addEventListener('click', renderGambaTab);
 }
 
 /* ─── Init ───────────────────────────────────────────────────────────────────── */
