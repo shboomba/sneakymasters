@@ -88,7 +88,8 @@ export default async function handler(req, res) {
         .then(rank => rank ? {
           gameName, tagLine,
           lp: computeLP(rank.tier, rank.rank, rank.leaguePoints),
-          tier: rank.tier, rank: rank.rank
+          tier: rank.tier, rank: rank.rank,
+          puuid: rank.puuid
         } : null)
         .catch(() => null)
     ));
@@ -132,13 +133,46 @@ export default async function handler(req, res) {
             await new Promise(r => setTimeout(r, 500));
           }
         }
+
+        // Streak tracking — fetch fresh streak when LP changed (a game was played)
+        if (last.lp !== p.lp && p.puuid) {
+          try {
+            const champRes = await fetch(`${apiBase}/api/champions?puuid=${encodeURIComponent(p.puuid)}`);
+            if (champRes.ok) {
+              const champData = await champRes.json();
+              const newStreak = champData.streak;
+              // Notify if a significant streak (>= 3) just ended
+              if (last.streak && last.streak.count >= 3 && (!newStreak || newStreak.type !== last.streak.type)) {
+                const { type, count } = last.streak;
+                const emoji = type === 'win' ? '🔥' : '💀';
+                await postWebhook({
+                  color: type === 'win' ? 0xff6b6b : 0x50c878,
+                  description: `${emoji} **${p.gameName}**'s ${count}-game ${type} streak has ended!`
+                });
+                notifications.push(`${p.gameName}: ${count}-game ${type} streak ended`);
+                await new Promise(r => setTimeout(r, 500));
+              }
+              p.streak = newStreak;
+            }
+          } catch (err) {
+            console.error(`[monitor] streak check failed for ${p.gameName}:`, err.message);
+          }
+        }
       }
     }
 
     const newState = {};
     for (let i = 0; i < current.length; i++) {
       const p = current[i];
-      newState[pKey(p.gameName, p.tagLine)] = { lp: p.lp, tier: p.tier, rank: p.rank, pos: i };
+      const entry = { lp: p.lp, tier: p.tier, rank: p.rank, pos: i, puuid: p.puuid };
+      // Carry forward streak from prev if LP didn't change (no new game)
+      const key = pKey(p.gameName, p.tagLine);
+      if (p.streak !== undefined) {
+        entry.streak = p.streak;
+      } else if (prev[key]?.streak) {
+        entry.streak = prev[key].streak;
+      }
+      newState[key] = entry;
     }
     await kvSet(newState);
 
