@@ -140,19 +140,29 @@ export default async function handler(req, res) {
             const champRes = await fetch(`${apiBase}/api/champions?puuid=${encodeURIComponent(p.puuid)}`);
             if (champRes.ok) {
               const champData = await champRes.json();
-              const newStreak = champData.streak;
-              // Notify if a significant streak (>= 3) just ended
-              if (last.streak && last.streak.count >= 3 && (!newStreak || newStreak.type !== last.streak.type)) {
-                const { type, count } = last.streak;
-                const emoji = type === 'win' ? '🔥' : '💀';
-                await postWebhook({
-                  color: type === 'win' ? 0xff6b6b : 0x50c878,
-                  description: `${emoji} **${p.gameName}**'s ${count}-game ${type} streak has ended!`
-                });
-                notifications.push(`${p.gameName}: ${count}-game ${type} streak ended`);
-                await new Promise(r => setTimeout(r, 500));
+              p.streak = champData.streak;
+              // Infer ended streak from matchHistory (newest-first booleans)
+              // matchHistory[0] is the game just played; if it differs from matchHistory[1],
+              // a streak ended — count how long it ran from index 1 onward.
+              const mh = champData.matchHistory;
+              if (Array.isArray(mh) && mh.length >= 2 && mh[0] !== mh[1]) {
+                const prevResult = mh[1];
+                let count = 0;
+                for (let j = 1; j < mh.length; j++) {
+                  if (mh[j] === prevResult) count++;
+                  else break;
+                }
+                if (count >= 3) {
+                  const type = prevResult ? 'win' : 'loss';
+                  const emoji = type === 'win' ? '🔥' : '💀';
+                  await postWebhook({
+                    color: type === 'win' ? 0xff6b6b : 0x50c878,
+                    description: `${emoji} **${p.gameName}**'s ${count}-game ${type} streak has ended!`
+                  });
+                  notifications.push(`${p.gameName}: ${count}-game ${type} streak ended`);
+                  await new Promise(r => setTimeout(r, 500));
+                }
               }
-              p.streak = newStreak;
             }
           } catch (err) {
             console.error(`[monitor] streak check failed for ${p.gameName}:`, err.message);
