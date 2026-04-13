@@ -575,7 +575,7 @@ function renderCard(player, position, draggable = false) {
 
   const hasStreak = player.streak && player.streak.count >= 3;
   const streakBanner = hasStreak
-    ? `<div class="streak-banner streak-banner-${player.streak.type}">${player.streak.type === 'win' ? '🔥' : '💀'} ${player.streak.count} ${player.streak.type === 'win' ? 'Win' : 'Loss'} Streak</div>`
+    ? `<div class="streak-banner streak-banner-${player.streak.type}">${player.streak.type === 'win' ? '🔥' : '<img src="/mijstruggle.jpg" style="height:1.1em;vertical-align:middle;">'} ${player.streak.count} ${player.streak.type === 'win' ? 'Win' : 'Loss'} Streak</div>`
     : '';
   const streakClass = hasStreak ? ` card-streak-${player.streak.type}` : '';
 
