@@ -504,19 +504,18 @@ main {
   border-style: dashed !important;
   border-width: 2px !important;
   overflow: hidden;
+  background-image: url('/mijstruggle.jpg');
+  background-size: cover;
+  background-position: center;
 }
 
 .card-streak-loss::before {
-  content: '💀';
+  content: '';
   position: absolute;
-  font-size: 130px;
-  opacity: 0.06;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  background: rgba(10, 8, 15, 0.82);
   pointer-events: none;
   z-index: 0;
-  line-height: 1;
 }
 
 
@@ -539,7 +538,7 @@ main {
   letter-spacing: 0.05em;
 }
 .streak-banner-win  { background: linear-gradient(90deg, #7a2c00, #c94a00); color: #ffd6b0; border: 1px solid #e05a00; }
-.streak-banner-loss { background: url('/mijstruggle.jpg') center/cover no-repeat, linear-gradient(90deg, #1a1a2e, #3a1a1a); color: #c07070; border: 1px solid #5a2020; }
+.streak-banner-loss { background: linear-gradient(90deg, #1a1a2e, #3a1a1a); color: #c07070; border: 1px solid #5a2020; }
 
 /* ─── Leaderboard Toolbar ────────────────────────────────────────────────────── */
 .leaderboard-toolbar {
