@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   try {
-    const matchListUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=8`;
+    const matchListUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=15`;
     const matchListRes = await riotFetch(matchListUrl, RIOT_KEY);
 
     // 403 = match-v5 not approved on this key — degrade silently
