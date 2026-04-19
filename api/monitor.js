@@ -141,9 +141,26 @@ export default async function handler(req, res) {
             if (champRes.ok) {
               const champData = await champRes.json();
               p.streak = champData.streak;
-              // Infer ended streak from matchHistory (newest-first booleans)
-              // matchHistory[0] is the game just played; if it differs from matchHistory[1],
-              // a streak ended — count how long it ran from index 1 onward.
+
+              // Notify when a streak BEGINS (just hit 3+ games)
+              const cur = champData.streak;
+              const prevStreak = last.streak;
+              if (cur && cur.count >= 3) {
+                const alreadyStreaking = prevStreak &&
+                  prevStreak.type === cur.type &&
+                  prevStreak.count >= 3;
+                if (!alreadyStreaking) {
+                  const emoji = cur.type === 'win' ? '🔥' : '💀';
+                  await postWebhook({
+                    color: cur.type === 'win' ? 0xff6b35 : 0x8b2fc9,
+                    description: `${emoji} **${p.gameName}** is on a **${cur.count}-game ${cur.type} streak**!`
+                  });
+                  notifications.push(`${p.gameName}: ${cur.count}-game ${cur.type} streak started`);
+                  await new Promise(r => setTimeout(r, 500));
+                }
+              }
+
+              // Notify when a streak ENDS (newest game differs from previous)
               const mh = champData.matchHistory;
               if (Array.isArray(mh) && mh.length >= 2 && mh[0] !== mh[1]) {
                 const prevResult = mh[1];

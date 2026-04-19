@@ -201,7 +201,7 @@ main {
 }
 
 .player-card:hover { background: var(--bg-card-hover); }
-.player-card.card-streak-loss:hover { background-color: transparent; }
+.player-card.card-streak-loss:hover { background: url('/mijstruggle.jpg') center / cover; }
 
 .player-card.rank-first {
   background: linear-gradient(135deg, color-mix(in srgb, var(--tier-color, #ffd700) 10%, var(--bg-card)) 0%, var(--bg-card) 55%);
