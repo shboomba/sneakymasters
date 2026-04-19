@@ -400,7 +400,12 @@ async function refreshAll() {
       const data = await fetchPlayerData(p.gameName, p.tagLine);
       upsertPlayer(data);
     } catch (err) {
-      upsertPlayer({ gameName: p.gameName, tagLine: p.tagLine, loading: false, error: err.message, totalLP: 0, champions: [] });
+      const existing = enrichedPlayers.find(e => playerKey(e.gameName, e.tagLine) === playerKey(p.gameName, p.tagLine));
+      if (existing?.tier) {
+        existing.loading = false;
+      } else {
+        upsertPlayer({ gameName: p.gameName, tagLine: p.tagLine, loading: false, error: err.message, totalLP: 0, champions: [] });
+      }
     }
   }));
   renderLeaderboard();

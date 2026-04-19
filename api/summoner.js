@@ -1,11 +1,10 @@
-async function riotFetch(url, key, retries = 2) {
+async function riotFetch(url, key, retries = 1) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const r = await fetch(url, { headers: { 'X-Riot-Token': key } });
     if (r.status !== 429) return r;
-    const wait = parseInt(r.headers.get('Retry-After') || '2', 10);
+    const wait = Math.min(parseInt(r.headers.get('Retry-After') || '1', 10), 2);
     await new Promise(resolve => setTimeout(resolve, wait * 1000));
   }
-  // Return last response (still 429)
   return fetch(url, { headers: { 'X-Riot-Token': key } });
 }
 
