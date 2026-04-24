@@ -500,14 +500,12 @@ main {
   to   { box-shadow: 0 0 30px rgba(255,150,0,0.65), 0 0 0 1px rgba(255,150,0,0.5); }
 }
 
-.card-streak-loss {
+.player-card.card-streak-loss {
   border-color: #6b2d8b !important;
   border-style: dashed !important;
   border-width: 2px !important;
   overflow: hidden;
-  background-image: url('/mijstruggle.jpg');
-  background-size: cover;
-  background-position: center;
+  background: url('/mijstruggle.jpg') center / cover;
 }
 
 .card-streak-loss::before {
