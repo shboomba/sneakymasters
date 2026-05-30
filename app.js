@@ -61,7 +61,8 @@ const NL_ZONES = [
   { tier: 'MASTER+',  start: 2800, end: 2900, color: '#d7a2e8' },
 ];
 
-const ARRANGE_KEY = 'rtm_arrange_order';
+const ARRANGE_KEY      = 'rtm_arrange_order';
+const PLAYER_CACHE_KEY = 'rtm_player_cache';
 
 /* ─── In-Memory State ────────────────────────────────────────────────────────── */
 let enrichedPlayers = [];
@@ -74,6 +75,22 @@ function getSavedOrder() {
   try { return JSON.parse(localStorage.getItem(ARRANGE_KEY)) || []; } catch { return []; }
 }
 function saveOrder(keys) { localStorage.setItem(ARRANGE_KEY, JSON.stringify(keys)); }
+
+function loadPlayerCache() {
+  try { return JSON.parse(localStorage.getItem(PLAYER_CACHE_KEY)) || []; } catch { return []; }
+}
+function savePlayerCache() {
+  const toSave = enrichedPlayers
+    .filter(p => !p.loading && p.tier)
+    .map(p => ({
+      gameName: p.gameName, tagLine: p.tagLine,
+      tier: p.tier, rank: p.rank, leaguePoints: p.leaguePoints,
+      totalLP: p.totalLP, puuid: p.puuid,
+      champions: p.champions || [], roles: p.roles || [],
+      streak: p.streak ?? null, matchHistory: p.matchHistory || [],
+    }));
+  localStorage.setItem(PLAYER_CACHE_KEY, JSON.stringify(toSave));
+}
 
 /* ─── LP Math ────────────────────────────────────────────────────────────────── */
 function computeTotalLP(tier, rank, lp) {
@@ -361,6 +378,7 @@ function upsertPlayer(data) {
 function removePlayerFromState(gameName, tagLine) {
   const key = playerKey(gameName, tagLine);
   enrichedPlayers = enrichedPlayers.filter(p => playerKey(p.gameName, p.tagLine) !== key);
+  savePlayerCache();
 }
 
 function playerKey(gameName, tagLine) {
@@ -445,6 +463,7 @@ async function refreshAll() {
 
   refreshBtn.disabled = false;
   refreshBtn.textContent = 'Refresh All';
+  savePlayerCache();
 }
 
 /* ─── Card Rendering ─────────────────────────────────────────────────────────── */
@@ -1273,6 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSuggestionWidget();
   getDDragonVersion();
   fetchNotes();
+  enrichedPlayers = loadPlayerCache();
   renderLeaderboard();
 });
 
