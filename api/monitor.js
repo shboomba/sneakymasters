@@ -122,7 +122,7 @@ export default async function handler(req, res) {
           await new Promise(r => setTimeout(r, 500));
         }
 
-        if (last.pos !== undefined && last.pos > i) {
+        if (last.pos !== undefined && last.pos > i && last.lp !== p.lp) {
           const passed = current[last.pos];
           if (passed) {
             await postWebhook({

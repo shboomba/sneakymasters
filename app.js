@@ -1272,7 +1272,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupSuggestionWidget();
   getDDragonVersion();
-  fetchNotes().then(() => refreshAll());
+  fetchNotes();
+  renderLeaderboard();
 });
 
 window.addEventListener('resize', () => {

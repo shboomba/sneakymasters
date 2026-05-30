@@ -58,6 +58,17 @@ header {
   flex-wrap: wrap;
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-logo {
+  height: 48px;
+  width: auto;
+}
+
 header h1 {
   font-family: 'Cinzel', serif;
   font-size: 28px;
