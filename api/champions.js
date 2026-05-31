@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ champions: [] });
   }
 
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
 
   try {
     const matchListUrl = `https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?queue=420&count=15`;
